@@ -50,6 +50,37 @@ async function currentProfile(request, env) {
   return { id: profile.id, email: profile.email, full_name: profile.full_name, role: profile.roles?.name || "Operador" };
 }
 
+const isAdmin = profile => profile.role === "Administrador";
+
+async function operatorApi(request, env, url) {
+  if (url.pathname === "/api/categories" && request.method === "GET") {
+    return response({ items: await rest(request, env, "categories", "select=id,name&active=eq.true&order=name") });
+  }
+  if (url.pathname === "/api/products" && request.method === "GET") {
+    const items = await rpc(request, env, "operator_catalog", { p_query: clean(url.searchParams.get("q"), 80), p_category: url.searchParams.get("category") || null });
+    for (const item of items) item.image_key = await signedImage(request, env, item.image_key);
+    return response({ items });
+  }
+  if (url.pathname === "/api/inventory" && request.method === "GET") return response({ items: await rpc(request, env, "operator_inventory", {}) });
+  if (url.pathname === "/api/sales" && request.method === "GET") return response({ items: await rpc(request, env, "operator_sales", {}) });
+  if (url.pathname === "/api/sales" && request.method === "POST") {
+    const b = await request.json();
+    const result = await rpc(request, env, "create_sale", { p_customer_name:b.customerName, p_order_date:b.orderDate||today(), p_discount_cents:0, p_shipping_cents:Math.max(0,cents(b.shipping)||0), p_notes:b.notes||null, p_items:(b.items||[]).map(x=>({variantId:x.variantId,quantity:Math.trunc(Number(x.quantity))})) });
+    return response(result, 201);
+  }
+  const items = url.pathname.match(/^\/api\/sales\/([^/]+)\/items$/);
+  if (items && request.method === "GET") return response({ items: await rpc(request, env, "operator_sale_items", { p_sale_id: items[1] }) });
+  const payment = url.pathname.match(/^\/api\/sales\/([^/]+)\/payments$/);
+  if (payment && request.method === "POST") { const b=await request.json(); const id=await rpc(request,env,"record_sale_payment",{p_sale_id:payment[1],p_account_id:b.accountId,p_amount_cents:cents(b.amount),p_date:b.date||today(),p_method:b.method||"Outro"}); return response({ok:true,id}); }
+  const separate = url.pathname.match(/^\/api\/sales\/([^/]+)\/separate$/);
+  if (separate && request.method === "POST") { await rpc(request,env,"separate_sale",{p_sale_id:separate[1]}); return response({ok:true}); }
+  const shipment = url.pathname.match(/^\/api\/sales\/([^/]+)\/shipments$/);
+  if (shipment && request.method === "POST") { const b=await request.json(); const id=await rpc(request,env,"ship_sale",{p_sale_id:shipment[1],p_tracking_code:b.trackingCode||null}); return response({ok:true,id}); }
+  if (url.pathname === "/api/payment-accounts" && request.method === "GET") return response({ items: await rpc(request,env,"operator_payment_accounts",{}) });
+  if ((url.pathname === "/api/dashboard" || url.pathname === "/api/operator/dashboard") && request.method === "GET") return response(await rpc(request,env,"operator_dashboard",{}));
+  return response({ error: "Acesso restrito ao administrador." }, 403);
+}
+
 async function catalog(request, env, url) {
   if (url.pathname === "/api/categories" && request.method === "GET") {
     return response({ items: await rest(request, env, "categories", "select=id,name&active=eq.true&order=name") });
@@ -254,8 +285,9 @@ export async function supabaseApi(request, env, url) {
       if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) return response({ error: "Supabase não configurado no ambiente." }, 503);
       return response({ url: env.SUPABASE_URL, publishableKey: env.SUPABASE_PUBLISHABLE_KEY });
     }
-    if (url.pathname === "/api/session" && request.method === "GET") return response({ user: await currentProfile(request, env) });
-    await currentProfile(request, env);
+    const profile = await currentProfile(request, env);
+    if (url.pathname === "/api/session" && request.method === "GET") return response({ user: profile });
+    if (!isAdmin(profile)) return await operatorApi(request, env, url);
     const catalogResult = await catalog(request, env, url);
     if (catalogResult) return catalogResult;
     const operationsResult = await operations(request, env, url);

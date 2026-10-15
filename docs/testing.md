@@ -47,3 +47,13 @@ Os cenários transacionais de compras, estoque, vendas, financeiro e calculadora
 - Transferência entre contas preservou o saldo financeiro total.
 - Pagamento acima do total foi rejeitado e a conciliação registrou usuário e data.
 - Módulos, Worker, preview e JavaScript embarcado passaram na validação sintática.
+
+## Fase 6
+
+- Custo de R$ 100,00, taxa de 10% e lucro desejado de R$ 20,00 resultaram em preço mínimo de R$ 133,34.
+- Com margem desejada de 30% e taxa de 10%, o preço calculado foi R$ 166,67.
+- A simulação de R$ 150,00 calculou R$ 15,00 em taxas, R$ 35,00 de contribuição e margem de 23,33%.
+- Taxas mais margem iguais a 100% e valores monetários com precisão inválida foram rejeitados.
+- As sugestões comerciais terminadas em `,90` e `,99` nunca ficaram abaixo do preço calculado.
+- A aplicação atualizou o preço do SKU e preservou preço e custo históricos da venda existente.
+- Worker, módulo matemático, preview e JavaScript embarcado passaram na validação sintática.

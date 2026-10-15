@@ -18,3 +18,6 @@
 - **Conta a pagar/receber:** compromisso futuro, distinto do movimento efetivo de dinheiro.
 - **Despesa de resultado:** saída operacional que reduz o resultado; pagamento de mercadoria compõe estoque e CMV, não despesa imediata.
 - **Conciliação:** confirmação manual de que o lançamento corresponde ao extrato ou caixa real.
+- **Ponto de equilíbrio unitário:** menor preço que cobre custos informados e taxas proporcionais, sem margem de contribuição positiva.
+- **Margem de contribuição estimada:** preço menos custos e taxas variáveis informados; não representa lucro líquido final.
+- **Preço comercial:** sugestão arredondada para final `,90` ou `,99`, nunca inferior ao preço matemático calculado.

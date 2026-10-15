@@ -13,3 +13,5 @@ Compras e recebimentos agora formam um fluxo transacional. Criar compra não toc
 Após a revisão da Fase 3, `worker/modules/purchasing.js` tornou-se o módulo deep para projeção, pagamento e recebimento; `worker/modules/inventory.js` concentra as leituras de saldo e ledger. `worker/index.js` permanece como adapter HTTP e entrega da interface. A migration 0004 move invariantes concorrentes para triggers D1.
 
 Na Fase 5, `worker/modules/finance.js` concentra contas, lançamentos, transferências, obrigações e indicadores. Triggers da migration 0006 ligam pagamentos operacionais ao livro financeiro por uma origem única, evitando lançamentos duplicados sem colocar regras monetárias na interface.
+
+Na Fase 6, `worker/modules/pricing.js` é a única fonte das fórmulas de preço. A interface envia entradas brutas e o servidor converte moeda para centavos e percentuais para pontos-base, calcula com arredondamento controlado e revalida o preço antes de persistir no SKU.

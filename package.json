@@ -7,6 +7,7 @@
     "test:sales": "node scripts/test-sales.mjs",
     "test:finance": "node scripts/test-finance.mjs",
     "test:pricing": "node scripts/test-pricing.mjs",
+    "test:reporting": "node scripts/test-reporting.mjs",
     "preview": "node scripts/render-preview.mjs"
   }
 }

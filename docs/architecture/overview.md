@@ -15,3 +15,5 @@ Após a revisão da Fase 3, `worker/modules/purchasing.js` tornou-se o módulo d
 Na Fase 5, `worker/modules/finance.js` concentra contas, lançamentos, transferências, obrigações e indicadores. Triggers da migration 0006 ligam pagamentos operacionais ao livro financeiro por uma origem única, evitando lançamentos duplicados sem colocar regras monetárias na interface.
 
 Na Fase 6, `worker/modules/pricing.js` é a única fonte das fórmulas de preço. A interface envia entradas brutas e o servidor converte moeda para centavos e percentuais para pontos-base, calcula com arredondamento controlado e revalida o preço antes de persistir no SKU.
+
+Na Fase 7, `worker/modules/reporting.js` concentra projeções somente de leitura para dashboard e relatórios. As consultas derivam faturamento, CMV, despesas, saldos, giro e alertas das tabelas transacionais; a interface apenas apresenta, filtra e exporta os resultados já calculados no servidor.

@@ -21,3 +21,6 @@
 - **Ponto de equilíbrio unitário:** menor preço que cobre custos informados e taxas proporcionais, sem margem de contribuição positiva.
 - **Margem de contribuição estimada:** preço menos custos e taxas variáveis informados; não representa lucro líquido final.
 - **Preço comercial:** sugestão arredondada para final `,90` ou `,99`, nunca inferior ao preço matemático calculado.
+- **Faturamento:** valor das vendas válidas no período, independentemente de já terem sido recebidas.
+- **Giro de produto:** quantidade vendida em um período; baixo giro inclui SKUs sem venda ou com poucas unidades vendidas.
+- **Projeção de relatório:** leitura agregada e reproduzível das operações, sem alterar os registros de origem.

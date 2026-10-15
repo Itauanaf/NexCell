@@ -22,6 +22,10 @@ assert.equal(page.status,200);assert.match(page.body,/NexCell ERP/);assert.doesN
 assert.doesNotMatch(page.body,/Criar primeira conta|\/auth\/v1\/signup/);
 assert.match(page.body,/\/api\/auth\/logout/);
 assert.match(page.body,/\/api\/auth\/refresh/);
+assert.match(page.body,/sidebar-backdrop/);
+assert.match(page.body,/body\.menu-open\{overflow:hidden\}/);
+assert.match(page.body,/closest\('#sidebar \[data-page\]'\)/);
+assert.match(page.body,/e\.key==='Escape'/);
 assert.match(page.headers["content-security-policy"],/script-src 'self' 'sha256-/);
 assert.doesNotMatch(page.headers["content-security-policy"],/script-src[^;]*unsafe-inline/);
 const config=await invoke("/api/handler?__path=api%2Fconfig");

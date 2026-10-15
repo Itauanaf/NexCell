@@ -12,7 +12,7 @@ ERP interno para catálogo, compras, estoque, vendas, financeiro, relatórios e 
 
 ## Desenvolvimento local
 
-Copie `.env.example` para `.env.local` e configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` e, apenas no servidor, `SUPABASE_SECRET_KEY`.
+Copie `.env.example` para `.env.local` e configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `APP_URL` e, apenas no servidor, `SUPABASE_SECRET_KEY`.
 
 ```powershell
 npm install

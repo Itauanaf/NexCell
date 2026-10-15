@@ -332,6 +332,16 @@ const accessUiFixesClient=`(()=>{let accessFix=null,groupUsers=[];getJson('/api/
 function phase14Page(){return phase13Page().replace("</script>",accessUiFixesClient+"</script>")}
 export { phase14Page };
 
+const legacyLogout=`document.addEventListener('click',e=>{const link=e.target.closest('.aside-foot>a');if(!link)return;e.preventDefault();localStorage.removeItem('nexcell.supabase.session');location.reload()})`;
+const secureLogout=`document.addEventListener('click',async e=>{const link=e.target.closest('.aside-foot>a');if(!link)return;e.preventDefault();const session=saved();try{if(session?.access_token){const c=await getConfig();await nativeFetch(c.url+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:c.publishableKey,authorization:'Bearer '+session.access_token}})}}finally{localStorage.removeItem('nexcell.supabase.session');location.reload()}})`;
+const invitationBody=`,headers:{'content-type':'application/json'},body:JSON.stringify({email:user.email,fullName:user.name})`;
+function securedPage(){return phase14Page()
+  .replace('Entre com sua conta segura. O primeiro cadastro confirmado será o administrador.','Entre com a conta criada pelo administrador da NexCell.')
+  .replace('<button class="secondary" name="action" value="signup">Criar primeira conta</button>','')
+  .replace("path=submit==='signup'?'/auth/v1/signup':'/auth/v1/token?grant_type=password'","path='/auth/v1/token?grant_type=password'")
+  .replace(legacyLogout,secureLogout)
+  .replaceAll(invitationBody,'')}
+
 export default {
   async fetch(request, env) {
     const runtimeEnv = Object.fromEntries(Object.entries(env || {}).filter(([, value]) => value !== undefined && value !== null && value !== ""));
@@ -342,7 +352,7 @@ export default {
       if (url.pathname.startsWith("/api/")) return await api(request, env, url);
       if (url.pathname.startsWith("/images/") && env.SUPABASE_URL) { const target=decodeURIComponent(url.pathname.slice(8)); if(!target.startsWith(`${env.SUPABASE_URL}/storage/v1/object/sign/`))return new Response("Não encontrado",{status:404}); return Response.redirect(target,302); }
       if (url.pathname.startsWith("/images/")) { const object=await env.BUCKET.get(decodeURIComponent(url.pathname.slice(8))); if(!object)return new Response("Não encontrado",{status:404}); return new Response(object.body,{headers:{"content-type":object.httpMetadata?.contentType||"application/octet-stream","cache-control":"private, max-age=3600"}}); }
-      if (url.pathname === "/" || url.pathname === "/index.html") return new Response(phase14Page(), { headers:{"content-type":"text/html; charset=utf-8","cache-control":"private, no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer","permissions-policy":"camera=(), microphone=(), geolocation=()","content-security-policy":"default-src 'self'; connect-src 'self' https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; frame-ancestors 'self' https://chatgpt.com"} });
+      if (url.pathname === "/" || url.pathname === "/index.html") return new Response(securedPage(), { headers:{"content-type":"text/html; charset=utf-8","cache-control":"private, no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer","permissions-policy":"camera=(), microphone=(), geolocation=()","content-security-policy":"default-src 'self'; connect-src 'self' https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; frame-ancestors 'self' https://chatgpt.com"} });
       return new Response("Não encontrado", {status:404});
     } catch (error) {
       return url.pathname.startsWith("/api/") ? json({error:"Falha interna. Tente novamente."},500) : new Response("Falha interna",{status:500});

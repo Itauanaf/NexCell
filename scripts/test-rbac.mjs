@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { supabaseApi } from "../worker/supabase-api.js";
 import { authorizationContext, authorizeRoute, requiredPermission } from "../worker/modules/authorization.js";
 
-const env={SUPABASE_URL:"https://project.supabase.co",SUPABASE_PUBLISHABLE_KEY:"public-test-key"};
+const env={SUPABASE_URL:"https://project.supabase.co",SUPABASE_PUBLISHABLE_KEY:"public-test-key",APP_URL:"https://nexcell.test"};
 let permissions=["dashboard.operator.view","products.view","inventory.view","sales.view","sales.create","sales.ship"],groups=[{id:"g1",name:"Vendedor"}],calls=[];
 globalThis.fetch=async (input,init={})=>{
   const url=String(input); calls.push({url,init});
@@ -11,6 +11,9 @@ globalThis.fetch=async (input,init={})=>{
   if(url.endsWith("/rest/v1/rpc/operator_inventory"))return Response.json([{variant_id:"v1",name:"Capa",sku:"CAP-1",physical:4,reserved:1,available:3,minimum_stock:1,sale_price_cents:2990}]);
   if(url.endsWith("/rest/v1/rpc/admin_access_overview"))return Response.json({active_users:2,inactive_users:1,pending_invitations:1,groups:4});
   if(url.endsWith("/rest/v1/rpc/admin_permission_groups"))return Response.json([]);
+  if(url.endsWith("/rest/v1/rpc/invitation_for_resend"))return Response.json({email:"canonical@nexcell.test",full_name:"Nome Canônico"});
+  if(url.endsWith("/auth/v1/invite"))return Response.json({id:"invited-user"});
+  if(url.endsWith("/rest/v1/rpc/mark_invitation_resent"))return Response.json(null);
   if(url.includes("/rest/v1/suppliers"))return Response.json([]);
   if(url.includes("/rest/v1/products"))return Response.json([]);
   return Response.json({message:"mock não configurado: "+url},{status:500});
@@ -53,6 +56,14 @@ const callsBeforeInvite=calls.length;
 result=await body(await supabaseApi(request("/api/admin/users/invite",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({fullName:"Novo Usuário",email:"novo@nexcell.test",groupIds:["admin"]})}),env,new URL("https://nexcell.test/api/admin/users/invite")));
 assert.equal(result.status,403,"users.invite alone must not assign privileged groups");
 assert.equal(calls.length,callsBeforeInvite+1,"denied invitation must stop after loading access context");
+
+env.SUPABASE_SECRET_KEY="server-secret";
+const resendStart=calls.length;
+result=await body(await supabaseApi(request("/api/admin/invitations/inv-1/resend",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"attacker@example.test",fullName:"Falso"})}),env,new URL("https://nexcell.test/api/admin/invitations/inv-1/resend")));
+assert.equal(result.status,200);
+const inviteCall=calls.slice(resendStart).find(x=>x.url.endsWith("/auth/v1/invite"));
+assert.ok(inviteCall,"resend must invoke Supabase Auth");
+assert.equal(JSON.parse(inviteCall.init.body).email,"canonical@nexcell.test","resend must ignore client-provided identity");
 
 const ctx=authorizationContext({user:{id:"u"},groups:[],permissions:["reports.operational.view"]});
 assert.equal(requiredPermission(request("/api/reports?type=revenue"),new URL("https://nexcell.test/api/reports?type=revenue"),ctx),"reports.operational.view");

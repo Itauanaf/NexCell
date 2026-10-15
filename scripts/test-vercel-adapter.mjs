@@ -6,6 +6,7 @@ import handler from "../api/handler.js";
 const text=await readFile(new URL("../.env.local",import.meta.url),"utf8");
 for(const line of text.split(/\r?\n/)){if(!line||line.trimStart().startsWith("#"))continue;const i=line.indexOf("=");process.env[line.slice(0,i).trim()]=line.slice(i+1).trim().replace(/^['"]|['"]$/g,"")}
 const expectedUrl=process.env.SUPABASE_URL;
+const handlerSource=await readFile(new URL("../api/handler.js",import.meta.url),"utf8");
 delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_PUBLISHABLE_KEY;
 
@@ -18,6 +19,16 @@ async function invoke(path){
 
 const page=await invoke("/api/handler?__path=");
 assert.equal(page.status,200);assert.match(page.body,/NexCell ERP/);assert.match(page.body,/nexcell\.supabase\.session/);
+assert.doesNotMatch(page.body,/Criar primeira conta|\/auth\/v1\/signup/);
+assert.match(page.body,/\/auth\/v1\/logout\?scope=global/);
 const config=await invoke("/api/handler?__path=api%2Fconfig");
 assert.equal(config.status,200);const parsed=JSON.parse(config.body);assert.equal(parsed.url,expectedUrl);assert.ok(parsed.publishableKey);
+assert.match(handlerSource,/SUPABASE_SECRET_KEY:\s*process\.env\.SUPABASE_SECRET_KEY/);
+assert.match(handlerSource,/VERCEL_PROJECT_PRODUCTION_URL/);
+assert.match(handlerSource,/MAX_REQUEST_BYTES\s*=\s*5\s*\*\s*1024\s*\*\s*1024/);
+
+const oversized=Readable.from([]);oversized.method="POST";oversized.url="/api/handler?__path=api%2Fconfig";oversized.headers={host:"localhost:3000","x-forwarded-proto":"http","content-length":String(5*1024*1024+1)};
+const oversizedResponse={statusCode:200,setHeader(){},end(){}};
+await handler(oversized,oversizedResponse);
+assert.equal(oversizedResponse.statusCode,413);
 console.log("vercel adapter: ok");

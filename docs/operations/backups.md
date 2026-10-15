@@ -1,22 +1,23 @@
-# Backup e restauração
+# Backup e restauração do Supabase
 
 ## Política
 
-- Criar um snapshot/exportação do D1 antes de qualquer migration de produção.
-- Manter uma cópia externa criptografada por pelo menos 30 dias.
-- Exportar também os objetos do bucket R2 de imagens, preservando as chaves.
-- Registrar data, versão implantada, última migration e responsável.
-- Testar a restauração trimestralmente em um projeto privado de homologação.
+- Confirmar a retenção dos backups automáticos e, quando disponível no plano, o PITR do PostgreSQL antes de migrations de produção.
+- Gerar um dump lógico consistente antes de alterações críticas e guardar uma cópia externa criptografada por pelo menos 30 dias.
+- Exportar separadamente os objetos do Supabase Storage, preservando bucket, chave, metadados e vínculo com `product_images`.
+- Registrar a versão implantada, última migration, horário, responsável e localização segura do backup.
+- Não gravar senhas, chaves, tokens, dumps ou exportações no repositório.
+- Testar a restauração trimestralmente em um projeto Supabase privado de homologação.
 
-## Restauração testada em homologação
+## Ensaio de restauração em homologação
 
-1. Bloquear temporariamente novas escritas no sistema afetado.
-2. Criar um D1 vazio de homologação e aplicar as migrations na ordem numérica.
-3. Importar a exportação correspondente sem substituir o banco de produção.
-4. Restaurar o R2 mantendo exatamente as mesmas chaves de objeto.
-5. Conferir contagens de vendas, compras, movimentos, lançamentos e auditoria.
-6. Executar os cenários automatizados de estoque, vendas, financeiro, preços e relatórios.
-7. Comparar saldos financeiros e físicos com o snapshot de origem.
-8. Somente após aprovação, planejar a troca controlada do binding de produção.
+1. Criar um projeto isolado de homologação, sem apontar o domínio de produção para ele.
+2. Restaurar o dump do PostgreSQL ou o ponto selecionado do PITR no ambiente isolado.
+3. Restaurar os objetos do Storage nas mesmas chaves e conferir o bucket privado `product-images`.
+4. Recriar usuários de teste no Supabase Auth; dados de `auth.users` não devem ser improvisados por SQL de aplicação.
+5. Conferir contagens e relacionamentos de vendas, compras, estoque, finanças, perfis, grupos e auditoria.
+6. Executar os testes automatizados e cenários ponta a ponta de compra, venda, pagamento, preço e imagem.
+7. Comparar saldos financeiros, físicos e reservados com o backup de origem.
+8. Registrar tempo de recuperação, divergências e aprovação antes de planejar qualquer recuperação de produção.
 
-Nunca testar uma restauração diretamente sobre o único banco de produção. As credenciais e exportações não devem ser gravadas no repositório.
+Nunca ensaiar uma restauração sobre o único banco de produção. Durante uma recuperação real, bloquear novas escritas, preservar evidências e validar o ponto restaurado antes de reabrir o ERP.

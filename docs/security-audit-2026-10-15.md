@@ -1,5 +1,7 @@
 # NexCell ERP — Auditoria de segurança pré-operacional
 
+> Atualização de hardening: parte das correções P0/P1 foi implementada localmente na migration `20261015000900_security_hardening.sql` e no adaptador web. A migration ainda não foi aplicada em produção. Staging, restauração comprovada, sessão server-side, cadastro público desabilitado, proteção contra senhas vazadas e MFA continuam pendentes antes da liberação operacional.
+
 Data: 15 de outubro de 2026  
 Escopo: código em `6706f6d`, produção `https://nexcell-two.vercel.app` e projeto Supabase `vhiagjcluqlnddirmjum`  
 Modo: somente leitura; nenhuma correção, migration ou publicação foi realizada durante esta auditoria.

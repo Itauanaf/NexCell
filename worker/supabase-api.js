@@ -11,6 +11,25 @@ const clean = (value, max = 240) => typeof value === "string" ? value.trim().sli
 const cents = value => Math.round(Number(value) * 100);
 const today = () => new Date().toISOString().slice(0, 10);
 
+function publicError(error) {
+  if (error?.status === 401) return { status: 401, message: "Autenticação necessária." };
+  if (error?.status === 403) return { status: 403, message: "Você não tem permissão para esta operação." };
+  if (error?.status === 404) return { status: 404, message: "Registro não encontrado." };
+  if (error?.status === 409) return { status: 409, message: "A operação conflita com os dados atuais." };
+  if (error?.status === 413) return { status: 413, message: "A solicitação excede o tamanho permitido." };
+  if (error?.status === 422) return { status: 422, message: "Os dados informados são inválidos." };
+  if (error?.status === 429) return { status: 429, message: "Muitas tentativas. Aguarde e tente novamente." };
+  if (error?.status === 503) return { status: 503, message: "Serviço temporariamente indisponível." };
+  return { status: 500, message: "Falha interna no servidor." };
+}
+
+function applicationOrigin(env) {
+  if (!env.APP_URL) throw Object.assign(new Error("APP_URL não configurada no servidor."), { status: 503 });
+  const url = new URL(env.APP_URL);
+  if (url.protocol !== "https:" && url.hostname !== "localhost") throw Object.assign(new Error("APP_URL inválida."), { status: 503 });
+  return url.origin;
+}
+
 function credentials(request, env) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) throw Object.assign(new Error("Autenticação necessária."), { status: 401 });
@@ -83,15 +102,14 @@ async function administration(request,env,url,ctx){
     ctx.require("groups.manage");
     const b=await request.json(),email=clean(b.email,254).toLowerCase(),fullName=clean(b.fullName,120),groupIds=Array.isArray(b.groupIds)?b.groupIds:[];
     if(!/^\S+@\S+\.\S+$/.test(email)||!fullName||!groupIds.length)return response({error:"Informe nome, e-mail e ao menos um grupo."},422);
-    const origin=new URL(request.url).origin,user=await inviteAuthUser(env,{email,fullName,redirectTo:`${origin}/`});
+    const origin=applicationOrigin(env),user=await inviteAuthUser(env,{email,fullName,redirectTo:`${origin}/`});
     try { const invitationId=await rpc(request,env,"record_user_invitation",{p_user_id:user.id,p_email:email,p_group_ids:groupIds}); return response({id:user.id,invitationId},201); }
     catch(error){ await deleteAuthUser(env,user.id).catch(()=>false); throw error; }
   }
   const resend=url.pathname.match(/^\/api\/admin\/invitations\/([^/]+)\/resend$/);
   if(resend&&request.method==="POST"){
-    const b=await request.json(),email=clean(b.email,254).toLowerCase(),origin=new URL(request.url).origin;
-    if(!/^\S+@\S+\.\S+$/.test(email))return response({error:"E-mail inválido."},422);
-    await inviteAuthUser(env,{email,fullName:clean(b.fullName,120),redirectTo:`${origin}/`});
+    const invitation=await rpc(request,env,"invitation_for_resend",{p_invitation_id:resend[1]}),origin=applicationOrigin(env);
+    await inviteAuthUser(env,{email:invitation.email,fullName:clean(invitation.full_name,120),redirectTo:`${origin}/`});
     await rpc(request,env,"mark_invitation_resent",{p_invitation_id:resend[1]}); return response({ok:true});
   }
   const user=url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
@@ -339,6 +357,8 @@ export async function supabaseApi(request, env, url) {
     if (supportingResult) return supportingResult;
     return response({ error: "Rota ainda não migrada para o Supabase." }, 501);
   } catch (error) {
-    return response({ error: error.message || "Falha interna." }, error.status || 500);
+    console.error("NexCell API request failed", { status: error?.status, message: error?.message });
+    const issue = publicError(error);
+    return response({ error: issue.message }, issue.status);
   }
 }

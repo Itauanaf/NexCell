@@ -3,7 +3,7 @@ import { supabaseApi } from "../worker/supabase-api.js";
 import { authorizationContext, authorizeRoute, requiredPermission } from "../worker/modules/authorization.js";
 
 const env={SUPABASE_URL:"https://project.supabase.co",SUPABASE_PUBLISHABLE_KEY:"public-test-key",APP_URL:"https://nexcell.test"};
-let permissions=["dashboard.operator.view","products.view","inventory.view","sales.view","sales.create","sales.ship"],groups=[{id:"g1",name:"Vendedor"}],calls=[];
+let permissions=["dashboard.operator.view","products.view","inventory.view","sales.view","sales.create","sales.ship"],groups=[{id:"g1",name:"Vendedor"}],calls=[],token="test";
 globalThis.fetch=async (input,init={})=>{
   const url=String(input); calls.push({url,init});
   if(url.endsWith("/rest/v1/rpc/current_access_context"))return Response.json({user:{id:"00000000-0000-0000-0000-000000000001",email:"test@nexcell.local",full_name:"Teste",active:true},groups,permissions});
@@ -13,12 +13,13 @@ globalThis.fetch=async (input,init={})=>{
   if(url.endsWith("/rest/v1/rpc/admin_permission_groups"))return Response.json([]);
   if(url.endsWith("/rest/v1/rpc/invitation_for_resend"))return Response.json({email:"canonical@nexcell.test",full_name:"Nome Canônico"});
   if(url.endsWith("/auth/v1/invite"))return Response.json({id:"invited-user"});
+  if(url.endsWith("/auth/v1/user"))return Response.json({id:"00000000-0000-0000-0000-000000000001"});
   if(url.endsWith("/rest/v1/rpc/mark_invitation_resent"))return Response.json(null);
   if(url.includes("/rest/v1/suppliers"))return Response.json([]);
   if(url.includes("/rest/v1/products"))return Response.json([]);
   return Response.json({message:"mock não configurado: "+url},{status:500});
 };
-const request=(path,options={})=>new Request("https://nexcell.test"+path,{headers:{authorization:"Bearer test",...(options.headers||{})},method:options.method||"GET",body:options.body});
+const request=(path,options={})=>new Request("https://nexcell.test"+path,{headers:{authorization:"Bearer "+token,...(options.headers||{})},method:options.method||"GET",body:options.body});
 const body=async response=>({status:response.status,data:await response.json()});
 
 let result=await body(await supabaseApi(request("/api/products"),env,new URL("https://nexcell.test/api/products")));
@@ -38,6 +39,7 @@ result=await body(await supabaseApi(request("/api/products"),env,new URL("https:
 assert.equal(result.status,403,"revoked permission must take effect on the next request");
 
 permissions=["dashboard.admin.view","suppliers.view","users.view","groups.view","audit.view"];
+token="e30."+Buffer.from(JSON.stringify({aal:"aal2"})).toString("base64url")+".signature";
 groups=[{id:"admin",name:"Administrador"}];
 result=await body(await supabaseApi(request("/api/suppliers"),env,new URL("https://nexcell.test/api/suppliers")));
 assert.equal(result.status,200,"administrator capabilities remain available");

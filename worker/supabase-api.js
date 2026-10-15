@@ -1,6 +1,7 @@
 import { calculatePricing } from "./modules/pricing.js";
 import { authorizationContext, authorizeRoute } from "./modules/authorization.js";
 import { inviteAuthUser, deleteAuthUser } from "./modules/user-administration.js";
+import { accessToken, authApi, verifiedTokenAal } from "./modules/session-auth.js";
 
 const response = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
@@ -31,7 +32,7 @@ function applicationOrigin(env) {
 }
 
 function credentials(request, env) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const token = accessToken(request);
   if (!token) throw Object.assign(new Error("Autenticação necessária."), { status: 401 });
   if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) throw Object.assign(new Error("Supabase não configurado no ambiente."), { status: 503 });
   return { token, headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, authorization: `Bearer ${token}` } };
@@ -338,7 +339,12 @@ export async function supabaseApi(request, env, url) {
       if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) return response({ error: "Supabase não configurado no ambiente." }, 503);
       return response({ url: env.SUPABASE_URL, publishableKey: env.SUPABASE_PUBLISHABLE_KEY });
     }
+    const authResult = await authApi(request, env, url);
+    if (authResult) return authResult;
     const ctx = await currentAccess(request, env);
+    if (ctx.can("dashboard.admin.view")) {
+      if (await verifiedTokenAal(request, env) !== "aal2") return response({ error: "Confirme o segundo fator.", code: "mfa_required" }, 403);
+    }
     if (url.pathname === "/api/session" && request.method === "GET") { const role=ctx.can("dashboard.admin.view")?"Administrador":"Operacional"; return response({ user:{...ctx.user,role}, groups:ctx.groups, permissions:ctx.permissions, role }); }
     authorizeRoute(request,url,ctx);
     const adminResult=await administration(request,env,url,ctx);

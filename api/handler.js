@@ -46,6 +46,8 @@ export default async function handler(req, res) {
     });
     res.statusCode = result.status;
     result.headers.forEach((value, key) => res.setHeader(key, value));
+    const setCookies = result.headers.getSetCookie?.();
+    if (setCookies?.length) res.setHeader("set-cookie", setCookies);
     res.end(Buffer.from(await result.arrayBuffer()));
   } catch (error) {
     console.error("NexCell Vercel handler failed", error);

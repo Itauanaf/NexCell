@@ -1,6 +1,6 @@
 # NexCell ERP — Auditoria de segurança pré-operacional
 
-> Atualização de hardening: a migration `20261015000900_security_hardening.sql` foi aplicada em produção em 15 de outubro de 2026. Foram confirmados 5 gatilhos, 5 políticas administrativas, bloqueio de escrita direta, isolamento anônimo e rollback do teste `last_active_administrator`. Staging, restauração comprovada, sessão server-side, cadastro público desabilitado, proteção contra senhas vazadas e MFA continuam pendentes antes da liberação operacional.
+> Atualização de hardening: as migrations `20261015000900_security_hardening.sql` e `20261015223717_reduce_privileged_surface.sql` foram aplicadas em produção em 15 de outubro de 2026. Foram confirmados 5 gatilhos, políticas por capacidade, bloqueio de escrita direta, isolamento anônimo, helper RLS privado e rollback do teste `last_active_administrator`. Signup foi desativado e TOTP está habilitado. O código passa a usar cookies `HttpOnly`, refresh server-side e exige AAL2 para administradores após o próximo deploy. Proteção contra senhas vazadas e ensaio de restauração isolado continuam pendentes.
 
 Data: 15 de outubro de 2026  
 Escopo: código em `6706f6d`, produção `https://nexcell-two.vercel.app` e projeto Supabase `vhiagjcluqlnddirmjum`  

@@ -15,6 +15,7 @@
     "test:rbac": "node scripts/test-rbac.mjs",
     "test:permissions-schema": "node scripts/test-permissions-schema.mjs",
     "test:vercel": "node scripts/test-vercel-adapter.mjs",
+    "test:session-auth": "node scripts/test-session-auth.mjs",
     "preview": "node scripts/render-preview.mjs"
   }
 }

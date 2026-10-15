@@ -41,6 +41,8 @@ A remoção ou desativação do último administrador ativo é rejeitada dentro 
 
 Convites usam `SUPABASE_SECRET_KEY` exclusivamente no runtime do servidor. Configure essa variável na Vercel e nunca a prefixe como variável pública. Configure `APP_URL` com a origem canônica HTTPS; na Vercel, `VERCEL_PROJECT_PRODUCTION_URL` é usado automaticamente como fallback. A mesma URL pública precisa estar cadastrada em Supabase Auth → URL Configuration → Redirect URLs.
 
+As sessões são mantidas em cookies `HttpOnly`, `Secure` e `SameSite=Lax`; tokens não ficam disponíveis ao JavaScript do navegador. Administradores devem cadastrar um autenticador TOTP e concluir AAL2 antes de acessar o ERP. Operadores continuam usando autenticação por senha e as permissões dos grupos.
+
 O navegador envia somente nome, e-mail e grupos escolhidos. O servidor valida `users.invite`, chama o Auth Admin API e registra associação e auditoria por RPC autenticada.
 
 ## Aplicação e testes

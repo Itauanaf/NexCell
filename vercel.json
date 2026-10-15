@@ -4,6 +4,10 @@
   "outputDirectory": "public",
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/api/handler?__path="
+    },
+    {
       "source": "/:path*",
       "destination": "/api/handler?__path=:path*"
     }

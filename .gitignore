@@ -1,0 +1,5 @@
+.tools/
+.site-checkout/
+node-portable.zip
+nexcell-site.tar.gz
+dist/

@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 
 const db = new DatabaseSync(":memory:");
 db.exec("PRAGMA foreign_keys=ON");
-for (const name of ["0001_foundation.sql", "0002_catalog.sql", "0003_purchasing_inventory.sql", "0004_deepen_purchasing.sql", "0005_sales.sql"]) {
+for (const name of ["0001_foundation.sql", "0002_catalog.sql", "0003_purchasing_inventory.sql", "0004_deepen_purchasing.sql", "0005_sales.sql", "0006_finance.sql"]) {
   db.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
 }
 

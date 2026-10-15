@@ -1,0 +1,35 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+
+const db=new DatabaseSync(":memory:");db.exec("PRAGMA foreign_keys=ON");
+for(const name of ["0001_foundation.sql","0002_catalog.sql","0003_purchasing_inventory.sql","0004_deepen_purchasing.sql","0005_sales.sql","0006_finance.sql"])db.exec(readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8"));
+db.exec(`
+ INSERT INTO profiles(id,email,role_id) VALUES('u1','admin@nexcell.local','admin');
+ INSERT INTO suppliers(id,name,created_by) VALUES('sup1','Fornecedor','u1');
+ INSERT INTO products(id,name,category_id,supplier_id,created_by) VALUES('p1','Produto','cases','sup1','u1');
+ INSERT INTO product_variants(id,product_id,sku,cost_cents,sale_price_cents) VALUES('v1','p1','SKU-1',2500,5000);
+ INSERT INTO inventory_balances(variant_id,physical,reserved) VALUES('v1',10,0);
+ INSERT INTO financial_accounts(id,name,account_type,opening_balance_cents,created_by) VALUES('bank','Banco','bank',10000,'u1'),('wallet','Carteira','wallet',0,'u1');
+ INSERT INTO purchase_orders(id,number,supplier_id,order_date,order_status,total_cents,created_by) VALUES('po1','CMP-1','sup1','2026-10-14','confirmed',10000,'u1');
+ INSERT INTO purchase_order_items(id,purchase_order_id,variant_id,quantity,unit_cost_cents) VALUES('poi1','po1','v1',4,2500);
+ INSERT INTO purchase_payments(id,purchase_order_id,amount_cents,payment_date,method,created_by,account_id) VALUES('pp1','po1',4000,'2026-10-14','PIX','u1','bank');
+ INSERT INTO sales_orders(id,number,customer_name,order_date,subtotal_cents,total_cents,created_by) VALUES('so1','VND-1','Cliente','2026-10-14',15000,15000,'u1');
+ INSERT INTO sales_order_items(id,sales_order_id,variant_id,quantity,unit_price_cents,historical_cost_cents) VALUES('soi1','so1','v1',3,5000,2500);
+ INSERT INTO inventory_reservations(id,sales_order_id,sales_order_item_id,variant_id,quantity) VALUES('res1','so1','soi1','v1',3);
+ INSERT INTO sales_payments(id,sales_order_id,amount_cents,payment_date,method,created_by,account_id) VALUES('sp1','so1',9000,'2026-10-14','PIX','u1','bank');
+ INSERT INTO shipments(id,sales_order_id,shipped_at,created_by) VALUES('ship1','so1',CURRENT_TIMESTAMP,'u1');
+ INSERT INTO financial_transactions(id,account_id,direction,amount_cents,transaction_date,category_id,description,source_type,source_id,created_by) VALUES('expense1','bank','outflow',1000,'2026-10-14','marketing','Anúncios','manual','expense1','u1');
+`);
+assert.equal(db.prepare("SELECT balance_cents FROM financial_account_balances WHERE id='bank'").get().balance_cents,14000);
+assert.equal(db.prepare("SELECT original_cents-paid_cents pending FROM accounts_payable WHERE purchase_order_id='po1'").get().pending,6000);
+assert.equal(db.prepare("SELECT original_cents-received_cents pending FROM accounts_receivable WHERE sales_order_id='so1'").get().pending,6000);
+assert.equal(db.prepare("SELECT COUNT(*) total FROM financial_transactions WHERE source_type IN('purchase_payment','sales_payment')").get().total,2);
+db.exec("UPDATE financial_transactions SET reconciled_at=CURRENT_TIMESTAMP,reconciled_by='u1' WHERE source_type='sales_payment' AND source_id='sp1'");
+assert.equal(db.prepare("SELECT reconciled_by FROM financial_transactions WHERE source_type='sales_payment' AND source_id='sp1'").get().reconciled_by,"u1");
+const revenue=db.prepare("SELECT SUM(total_cents) value FROM sales_orders WHERE order_status<>'cancelled'").get().value,cogs=db.prepare("SELECT SUM((quantity-returned_quantity)*historical_cost_cents) value FROM sales_order_items").get().value,expenses=db.prepare("SELECT SUM(t.amount_cents) value FROM financial_transactions t JOIN financial_categories c ON c.id=t.category_id WHERE t.direction='outflow' AND c.affects_result=1").get().value;
+assert.equal(revenue-cogs-expenses,6500);
+db.exec(`INSERT INTO financial_transactions(id,account_id,direction,amount_cents,transaction_date,category_id,description,source_type,source_id,transfer_group_id,created_by) VALUES('tr1','bank','outflow',2000,'2026-10-14','transfer','Transferência','transfer_leg','tr1','g1','u1'); INSERT INTO financial_transactions(id,account_id,direction,amount_cents,transaction_date,category_id,description,source_type,source_id,transfer_group_id,created_by) VALUES('tr2','wallet','inflow',2000,'2026-10-14','transfer','Transferência','transfer_leg','tr2','g1','u1');`);
+assert.equal(db.prepare("SELECT SUM(balance_cents) total FROM financial_account_balances").get().total,14000);
+assert.throws(()=>db.exec("INSERT INTO sales_payments(id,sales_order_id,amount_cents,payment_date,method,created_by,account_id) VALUES('sp2','so1',7000,'2026-10-14','PIX','u1','bank')"));
+console.log("finance invariants: ok");

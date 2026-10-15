@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test:sales": "node scripts/test-sales.mjs",
+    "test:finance": "node scripts/test-finance.mjs",
     "preview": "node scripts/render-preview.mjs"
   }
 }

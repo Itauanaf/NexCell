@@ -14,3 +14,7 @@
 - **Expedição:** evento único que consome a reserva e reduz o estoque físico.
 - **Devolução conferida:** retorno validado que recompõe o estoque físico, limitado ao que foi expedido.
 - **Custo histórico:** custo do SKU congelado no item da venda para preservar a margem original.
+- **Conta financeira:** caixa, banco ou carteira onde entradas e saídas alteram o saldo disponível.
+- **Conta a pagar/receber:** compromisso futuro, distinto do movimento efetivo de dinheiro.
+- **Despesa de resultado:** saída operacional que reduz o resultado; pagamento de mercadoria compõe estoque e CMV, não despesa imediata.
+- **Conciliação:** confirmação manual de que o lançamento corresponde ao extrato ou caixa real.

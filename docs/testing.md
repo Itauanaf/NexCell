@@ -37,3 +37,13 @@ Os cenários transacionais de compras, estoque, vendas, financeiro e calculadora
 - Uma devolução conferida de 2 unidades recompôs o físico; devolver além do saldo vendido foi bloqueado.
 - O cancelamento de outra venda liberou toda a reserva sem alterar o físico.
 - O Worker, o módulo de vendas e o JavaScript embarcado da Fase 4 passaram na validação sintática.
+
+## Fase 5
+
+- As migrations 0001–0006 foram executadas juntas em SQLite em memória.
+- Pagamento parcial de compra reduziu o saldo e atualizou a conta a pagar sem virar despesa de resultado.
+- Recebimento parcial de venda aumentou o saldo e atualizou a conta a receber sem duplicar lançamento.
+- Faturamento de R$ 150,00, CMV de R$ 75,00 e despesa de R$ 10,00 produziram resultado estimado de R$ 65,00.
+- Transferência entre contas preservou o saldo financeiro total.
+- Pagamento acima do total foi rejeitado e a conciliação registrou usuário e data.
+- Módulos, Worker, preview e JavaScript embarcado passaram na validação sintática.

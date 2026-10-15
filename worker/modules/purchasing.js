@@ -16,10 +16,12 @@ export function createPurchasingModule(db){
       if(!order)throw new PurchasingError("not_found","Compra não encontrada.",404);
       const amount=toCents(input?.amount);
       if(!Number.isFinite(amount)||amount<=0)throw new PurchasingError("invalid_amount","Informe um pagamento válido.");
+      const account=await db.prepare("SELECT id FROM financial_accounts WHERE id=? AND active=1").bind(text(input?.accountId,80)).first();
+      if(!account)throw new PurchasingError("account_required","Selecione a conta usada no pagamento.");
       const paymentId=crypto.randomUUID();
       try{
         await db.batch([
-          db.prepare("INSERT INTO purchase_payments(id,purchase_order_id,amount_cents,payment_date,method,notes,created_by) VALUES(?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,text(input.date,10)||new Date().toISOString().slice(0,10),text(input.method,40)||"Outro",text(input.notes,500)||null,actorId),
+          db.prepare("INSERT INTO purchase_payments(id,purchase_order_id,amount_cents,payment_date,method,notes,created_by,account_id) VALUES(?,?,?,?,?,?,?,?)").bind(paymentId,orderId,amount,text(input.date,10)||new Date().toISOString().slice(0,10),text(input.method,40)||"Outro",text(input.notes,500)||null,actorId,account.id),
           db.prepare("INSERT INTO audit_logs(actor_id,action,entity_type,entity_id,metadata_json) VALUES(?,'purchase.payment_recorded','purchase_order',?,?)").bind(actorId,orderId,JSON.stringify({paymentId,amountCents:amount}))
         ]);
       }catch(error){

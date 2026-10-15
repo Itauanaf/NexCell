@@ -11,3 +11,5 @@ Seams seguintes: compras, estoque operacional, vendas, financeiro, precificaçã
 Compras e recebimentos agora formam um fluxo transacional. Criar compra não toca o saldo. Confirmar recebimento valida pendências, registra conferência, atualiza saldo e auditoria em um único `DB.batch`. A chave de idempotência impede processamento duplicado.
 
 Após a revisão da Fase 3, `worker/modules/purchasing.js` tornou-se o módulo deep para projeção, pagamento e recebimento; `worker/modules/inventory.js` concentra as leituras de saldo e ledger. `worker/index.js` permanece como adapter HTTP e entrega da interface. A migration 0004 move invariantes concorrentes para triggers D1.
+
+Na Fase 5, `worker/modules/finance.js` concentra contas, lançamentos, transferências, obrigações e indicadores. Triggers da migration 0006 ligam pagamentos operacionais ao livro financeiro por uma origem única, evitando lançamentos duplicados sem colocar regras monetárias na interface.

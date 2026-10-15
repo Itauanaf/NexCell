@@ -11,6 +11,7 @@
     "test:reporting": "node scripts/test-reporting.mjs",
     "test:security": "node scripts/test-security.mjs",
     "test:supabase-security": "node scripts/test-supabase-security.mjs",
+    "test:vercel": "node scripts/test-vercel-adapter.mjs",
     "preview": "node scripts/render-preview.mjs"
   }
 }

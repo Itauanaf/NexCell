@@ -4,10 +4,13 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "dev:supabase": "node scripts/dev-supabase.mjs",
     "test:sales": "node scripts/test-sales.mjs",
     "test:finance": "node scripts/test-finance.mjs",
     "test:pricing": "node scripts/test-pricing.mjs",
     "test:reporting": "node scripts/test-reporting.mjs",
+    "test:security": "node scripts/test-security.mjs",
+    "test:supabase-security": "node scripts/test-supabase-security.mjs",
     "preview": "node scripts/render-preview.mjs"
   }
 }

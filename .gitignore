@@ -3,3 +3,8 @@
 node-portable.zip
 nexcell-site.tar.gz
 dist/
+.env
+.env.local
+.env.*.local
+.supabase/
+supabase/.temp/

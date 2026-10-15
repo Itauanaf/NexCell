@@ -66,3 +66,12 @@ Os cenários transacionais de compras, estoque, vendas, financeiro e calculadora
 - Filtros de período e produto retornaram somente os registros correspondentes.
 - A tabela dinâmica e a exportação CSV foram compiladas com o restante do JavaScript embarcado.
 - Worker, módulo de relatórios, preview e build passaram nas validações sintáticas.
+
+## Fase 8
+
+- Requisições sem identidade foram rejeitadas com 401.
+- O perfil Operador foi impedido de criar conta financeira manual.
+- Uma escrita autenticada com origem externa foi rejeitada com 403.
+- Cabeçalhos defensivos e a política de permissões foram verificados na resposta HTML.
+- Todas as migrations 0001–0007 foram executadas em cada cenário de integração.
+- A interface final, os módulos e o artefato de distribuição passaram na validação sintática.

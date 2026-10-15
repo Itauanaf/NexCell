@@ -13,3 +13,5 @@ As próximas migrações adicionarão entidades por fase. Migrações aplicadas 
 `0005_sales.sql` adiciona clientes, vendas, itens com custo histórico, reservas, pagamentos, expedições, cancelamentos e devoluções. A criação reserva o estoque; a expedição baixa físico e reservado uma única vez; o cancelamento libera a reserva; e apenas a devolução conferida recompõe o físico, limitada à quantidade expedida.
 
 `0006_finance.sql` adiciona contas financeiras, categorias, lançamentos, contas a pagar e contas a receber. Compras e vendas criam compromissos; pagamentos e recebimentos geram movimentos de caixa únicos. Mercadoria reduz saldo, mas não é classificada como despesa de resultado. Transferências têm duas pernas vinculadas e efeito líquido zero.
+
+`0007_operational_indexes.sql` adiciona índices para períodos de venda, expedição, recebimentos esperados, movimentos financeiros, vencimentos e consulta da auditoria. Não altera regras ou dados.

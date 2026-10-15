@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createReportingModule } from "../worker/modules/reporting.js";
 
 const sqlite=new DatabaseSync(":memory:");sqlite.exec("PRAGMA foreign_keys=ON");
-for(const name of ["0001_foundation.sql","0002_catalog.sql","0003_purchasing_inventory.sql","0004_deepen_purchasing.sql","0005_sales.sql","0006_finance.sql"])sqlite.exec(readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8"));
+for(const name of ["0001_foundation.sql","0002_catalog.sql","0003_purchasing_inventory.sql","0004_deepen_purchasing.sql","0005_sales.sql","0006_finance.sql","0007_operational_indexes.sql"])sqlite.exec(readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8"));
 const today=new Date().toISOString().slice(0,10);
 sqlite.exec(`
  INSERT INTO profiles(id,email,role_id) VALUES('u1','admin@nexcell.local','admin');

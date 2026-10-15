@@ -122,10 +122,10 @@ language sql stable security definer set search_path='' as $$
  select exists(select 1 from public.profiles pr join public.user_groups ug on ug.user_id=pr.id join public.permission_groups g on g.id=ug.group_id and g.is_active join public.group_permissions gp on gp.group_id=g.id join public.permissions pe on pe.id=gp.permission_id where pr.id=p_user_id and pr.active and pe.code=p_code)
 $$;
 revoke execute on function private.has_permission_for(uuid,text) from public,anon;
-grant execute on function private.has_permission_for(uuid,text) to authenticated;
+revoke execute on function private.has_permission_for(uuid,text) from authenticated;
 
 create or replace function public.has_permission(p_code text) returns boolean
-language sql stable security invoker set search_path='' as $$ select private.has_permission_for((select auth.uid()),p_code) $$;
+language sql stable security definer set search_path='' as $$ select private.has_permission_for((select auth.uid()),p_code) $$;
 revoke execute on function public.has_permission(text) from public,anon;
 grant execute on function public.has_permission(text) to authenticated;
 
@@ -136,6 +136,7 @@ begin
  if (select auth.uid()) is null then raise exception 'authentication_required'; end if;
  update public.profiles set last_access_at=now(),updated_at=now() where id=(select auth.uid()) and active;
  if not found then raise exception 'user_inactive'; end if;
+ update public.user_invitations set status='accepted',accepted_at=coalesce(accepted_at,now()) where user_id=(select auth.uid()) and status in ('pending','expired');
  select jsonb_build_object('user',jsonb_build_object('id',pr.id,'email',pr.email,'full_name',pr.full_name,'active',pr.active,'last_access_at',pr.last_access_at),
   'groups',coalesce((select jsonb_agg(jsonb_build_object('id',g.id,'name',g.name) order by g.name) from public.user_groups ug join public.permission_groups g on g.id=ug.group_id and g.is_active where ug.user_id=pr.id),'[]'::jsonb),
   'permissions',coalesce((select jsonb_agg(code order by code) from (select distinct pe.code from public.user_groups ug join public.permission_groups g on g.id=ug.group_id and g.is_active join public.group_permissions gp on gp.group_id=g.id join public.permissions pe on pe.id=gp.permission_id where ug.user_id=pr.id) q),'[]'::jsonb)) into result
@@ -146,13 +147,13 @@ create or replace function public.admin_access_overview() returns jsonb
 language sql stable security definer set search_path='' as $$
  select case when private.has_permission_for((select auth.uid()),'users.view') then jsonb_build_object(
   'active_users',(select count(*) from public.profiles where active),'inactive_users',(select count(*) from public.profiles where not active),
-  'pending_invitations',(select count(*) from public.user_invitations where status='pending'),'groups',(select count(*) from public.permission_groups)
+  'pending_invitations',(select count(*) from public.user_invitations where status='pending' and last_sent_at>=now()-interval '24 hours'),'groups',(select count(*) from public.permission_groups)
  ) else null end
 $$;
 
 create or replace function public.admin_users() returns jsonb
 language sql stable security definer set search_path='' as $$
- select case when private.has_permission_for((select auth.uid()),'users.view') then coalesce(jsonb_agg(jsonb_build_object('id',pr.id,'name',pr.full_name,'email',pr.email,'active',pr.active,'last_access_at',pr.last_access_at,'created_at',pr.created_at,'invitation_id',(select i.id from public.user_invitations i where i.user_id=pr.id and i.status='pending' order by i.invited_at desc limit 1),'invitation_status',(select i.status from public.user_invitations i where i.user_id=pr.id order by i.invited_at desc limit 1),'groups',coalesce((select jsonb_agg(jsonb_build_object('id',g.id,'name',g.name) order by g.name) from public.user_groups ug join public.permission_groups g on g.id=ug.group_id where ug.user_id=pr.id),'[]'::jsonb),'permissions',coalesce((select jsonb_agg(code order by code) from (select distinct pe.code from public.user_groups ug join public.permission_groups g on g.id=ug.group_id and g.is_active join public.group_permissions gp on gp.group_id=g.id join public.permissions pe on pe.id=gp.permission_id where ug.user_id=pr.id) ep),'[]'::jsonb)) order by pr.created_at desc),'[]'::jsonb) else null end from public.profiles pr
+ select case when private.has_permission_for((select auth.uid()),'users.view') then coalesce(jsonb_agg(jsonb_build_object('id',pr.id,'name',pr.full_name,'email',pr.email,'active',pr.active,'last_access_at',pr.last_access_at,'created_at',pr.created_at,'invitation_id',(select i.id from public.user_invitations i where i.user_id=pr.id and i.status in ('pending','expired') order by i.invited_at desc limit 1),'invitation_status',(select case when i.status='pending' and i.last_sent_at<now()-interval '24 hours' then 'expired' else i.status end from public.user_invitations i where i.user_id=pr.id order by i.invited_at desc limit 1),'groups',coalesce((select jsonb_agg(jsonb_build_object('id',g.id,'name',g.name) order by g.name) from public.user_groups ug join public.permission_groups g on g.id=ug.group_id where ug.user_id=pr.id),'[]'::jsonb),'permissions',coalesce((select jsonb_agg(code order by code) from (select distinct pe.code from public.user_groups ug join public.permission_groups g on g.id=ug.group_id and g.is_active join public.group_permissions gp on gp.group_id=g.id join public.permissions pe on pe.id=gp.permission_id where ug.user_id=pr.id) ep),'[]'::jsonb)) order by pr.created_at desc),'[]'::jsonb) else null end from public.profiles pr
 $$;
 
 create or replace function public.admin_permission_groups() returns jsonb
@@ -194,26 +195,34 @@ end $$;
 
 create or replace function public.set_user_access(p_user_id uuid,p_full_name text,p_active boolean,p_group_ids uuid[]) returns void
 language plpgsql security definer set search_path='' as $$
-declare previous jsonb; removes_last_admin boolean;
+declare previous jsonb; removes_last_admin boolean; old_group_ids uuid[]; assigned_groups jsonb; removed_groups jsonb;
 begin
  if not private.has_permission_for((select auth.uid()),'users.edit') then raise exception 'permission_denied'; end if;
+ if (select count(*) from public.permission_groups where id=any(coalesce(p_group_ids,array[]::uuid[])) and is_active)<>coalesce(array_length(p_group_ids,1),0) then raise exception 'invalid_group'; end if;
+ select coalesce(array_agg(group_id order by group_id),array[]::uuid[]) into old_group_ids from public.user_groups where user_id=p_user_id;
  select jsonb_build_object('name',full_name,'active',active,'groups',(select coalesce(jsonb_agg(group_id),'[]'::jsonb) from public.user_groups where user_id=p_user_id)) into previous from public.profiles where id=p_user_id for update;
  if previous is null then raise exception 'user_not_found'; end if;
  if (previous->>'active')::boolean is distinct from p_active and not private.has_permission_for((select auth.uid()),'users.disable') then raise exception 'permission_denied'; end if;
+ if old_group_ids is distinct from (select coalesce(array_agg(id order by id),array[]::uuid[]) from public.permission_groups where id=any(coalesce(p_group_ids,array[]::uuid[]))) and not private.has_permission_for((select auth.uid()),'groups.manage') then raise exception 'permission_denied'; end if;
  select exists(select 1 from public.user_groups ug join public.permission_groups g on g.id=ug.group_id where ug.user_id=p_user_id and g.name='Administrador') and (not p_active or not exists(select 1 from public.permission_groups g where g.id=any(coalesce(p_group_ids,array[]::uuid[])) and g.name='Administrador')) into removes_last_admin;
  if removes_last_admin and (select count(distinct pr.id) from public.profiles pr join public.user_groups ug on ug.user_id=pr.id join public.permission_groups g on g.id=ug.group_id where pr.active and g.is_active and g.name='Administrador')<=1 then raise exception 'last_active_administrator'; end if;
  update public.profiles set full_name=coalesce(nullif(trim(p_full_name),''),full_name),active=p_active,updated_at=now() where id=p_user_id;
  delete from public.user_groups where user_id=p_user_id;
  insert into public.user_groups(user_id,group_id,assigned_by) select p_user_id,id,(select auth.uid()) from public.permission_groups where id=any(coalesce(p_group_ids,array[]::uuid[])) and is_active;
- if (select count(*) from public.permission_groups where id=any(coalesce(p_group_ids,array[]::uuid[])) and is_active)<>coalesce(array_length(p_group_ids,1),0) then raise exception 'invalid_group'; end if;
  insert into public.audit_logs(actor_id,action,entity_type,entity_id,previous_value,new_value) values((select auth.uid()),case when p_active then 'user.access_updated' else 'user.disabled' end,'profile',p_user_id::text,previous,jsonb_build_object('name',p_full_name,'active',p_active,'groups',p_group_ids));
+ if (previous->>'active')::boolean is distinct from p_active then insert into public.audit_logs(actor_id,action,entity_type,entity_id,previous_value,new_value) values((select auth.uid()),case when p_active then 'user.activated' else 'user.disabled' end,'profile',p_user_id::text,jsonb_build_object('active',(previous->>'active')::boolean),jsonb_build_object('active',p_active)); end if;
+ select coalesce(jsonb_agg(x),'[]'::jsonb) into assigned_groups from (select unnest(coalesce(p_group_ids,array[]::uuid[])) except select unnest(old_group_ids)) q(x);
+ select coalesce(jsonb_agg(x),'[]'::jsonb) into removed_groups from (select unnest(old_group_ids) except select unnest(coalesce(p_group_ids,array[]::uuid[]))) q(x);
+ if assigned_groups<>'[]'::jsonb then insert into public.audit_logs(actor_id,action,entity_type,entity_id,new_value) values((select auth.uid()),'user.group_assigned','profile',p_user_id::text,jsonb_build_object('groups',assigned_groups)); end if;
+ if removed_groups<>'[]'::jsonb then insert into public.audit_logs(actor_id,action,entity_type,entity_id,previous_value) values((select auth.uid()),'user.group_removed','profile',p_user_id::text,jsonb_build_object('groups',removed_groups)); end if;
 end $$;
 
 create or replace function public.record_user_invitation(p_user_id uuid,p_email text,p_group_ids uuid[]) returns uuid
 language plpgsql security definer set search_path='' as $$
 declare invitation uuid:=gen_random_uuid();
 begin
- if not private.has_permission_for((select auth.uid()),'users.invite') then raise exception 'permission_denied'; end if;
+ if not private.has_permission_for((select auth.uid()),'users.invite') or not private.has_permission_for((select auth.uid()),'groups.manage') then raise exception 'permission_denied'; end if;
+ if (select count(*) from public.permission_groups where id=any(coalesce(p_group_ids,array[]::uuid[])) and is_active)<>coalesce(array_length(p_group_ids,1),0) then raise exception 'invalid_group'; end if;
  insert into public.user_invitations(id,user_id,email,invited_by) values(invitation,p_user_id,lower(trim(p_email)),(select auth.uid()));
  insert into public.user_groups(user_id,group_id,assigned_by) select p_user_id,id,(select auth.uid()) from public.permission_groups where id=any(coalesce(p_group_ids,array[]::uuid[])) and is_active on conflict do nothing;
  insert into public.audit_logs(actor_id,action,entity_type,entity_id,new_value) values((select auth.uid()),'user.invited','profile',p_user_id::text,jsonb_build_object('email',lower(trim(p_email)),'groups',p_group_ids)); return invitation;
@@ -223,7 +232,7 @@ create or replace function public.mark_invitation_resent(p_invitation_id uuid) r
 language plpgsql security definer set search_path='' as $$
 begin
  if not private.has_permission_for((select auth.uid()),'users.invite') then raise exception 'permission_denied'; end if;
- update public.user_invitations set last_sent_at=now() where id=p_invitation_id and status='pending';
+ update public.user_invitations set last_sent_at=now(),status='pending' where id=p_invitation_id and status in ('pending','expired');
  if not found then raise exception 'pending_invitation_not_found'; end if;
  insert into public.audit_logs(actor_id,action,entity_type,entity_id,new_value) values((select auth.uid()),'user.invitation_resent','user_invitation',p_invitation_id::text,jsonb_build_object('resent_at',now()));
 end $$;
@@ -300,7 +309,7 @@ create policy receivable_permission_read on public.accounts_receivable for selec
 -- guards are upgraded in-place to the permission catalog so all callers,
 -- including direct Data API callers, receive the same authorization decision.
 do $$
-declare item record; definition text;
+declare item record; definition text; original_definition text;
 begin
  for item in select * from (values
   ('public.create_product(text,text,uuid,text,uuid,jsonb)'::regprocedure,'products.create'),
@@ -322,40 +331,46 @@ begin
   ('public.upsert_setting(text,jsonb)'::regprocedure,'dashboard.admin.view')
  ) as x(fn,permission_code) loop
   select pg_get_functiondef(item.fn::oid) into definition;
+  original_definition:=definition;
   definition:=replace(definition,'if not public.is_admin() then raise exception ''admin_required''; end if;',format('if not private.has_permission_for((select auth.uid()),%L) then raise exception ''permission_denied''; end if;',item.permission_code));
   definition:=replace(definition,'if not public.is_active_user() then raise exception ''not_authorized''; end if;',format('if not private.has_permission_for((select auth.uid()),%L) then raise exception ''permission_denied''; end if;',item.permission_code));
+  if definition=original_definition then raise exception 'permission_guard_not_replaced:%',item.fn; end if;
   execute definition;
  end loop;
 end $$;
 
 -- Operational RPCs receive explicit capabilities and remain safe projections.
-do $$ declare definition text; begin
- select pg_get_functiondef('public.operator_catalog(text,uuid)'::regprocedure::oid) into definition;
- execute replace(definition,'public.is_active_user()','private.has_permission_for((select auth.uid()),''products.view'')');
- select pg_get_functiondef('public.operator_inventory()'::regprocedure::oid) into definition;
- execute replace(definition,'public.is_active_user()','private.has_permission_for((select auth.uid()),''inventory.view'')');
- select pg_get_functiondef('public.operator_sales()'::regprocedure::oid) into definition;
- execute replace(definition,'public.is_active_user()','private.has_permission_for((select auth.uid()),''sales.view'')');
- select pg_get_functiondef('public.operator_sale_items(uuid)'::regprocedure::oid) into definition;
- execute replace(definition,'public.is_active_user()','private.has_permission_for((select auth.uid()),''sales.view'')');
- select pg_get_functiondef('public.operator_payment_accounts()'::regprocedure::oid) into definition;
- execute replace(definition,'public.is_active_user()','private.has_permission_for((select auth.uid()),''sales.create'')');
- select pg_get_functiondef('public.operator_dashboard()'::regprocedure::oid) into definition;
- execute replace(definition,'public.is_active_user()','private.has_permission_for((select auth.uid()),''dashboard.operator.view'')');
- select pg_get_functiondef('public.separate_sale(uuid)'::regprocedure::oid) into definition;
- execute replace(definition,'if not public.is_active_user() then raise exception ''not_authorized''; end if;','if not private.has_permission_for((select auth.uid()),''sales.ship'') then raise exception ''permission_denied''; end if;');
- select pg_get_functiondef('public.ship_sale(uuid,text)'::regprocedure::oid) into definition;
- execute replace(definition,'if not public.is_active_user() then raise exception ''not_authorized''; end if;','if not private.has_permission_for((select auth.uid()),''sales.ship'') then raise exception ''permission_denied''; end if;');
- select pg_get_functiondef('public.record_sale_payment(uuid,uuid,bigint,date,text)'::regprocedure::oid) into definition;
- execute replace(definition,'if not public.is_active_user() then raise exception ''not_authorized''; end if;','if not private.has_permission_for((select auth.uid()),''sales.create'') then raise exception ''permission_denied''; end if;');
+do $$ declare item record; definition text; original_definition text; begin
+ for item in select * from (values
+  ('public.operator_catalog(text,uuid)'::regprocedure,'products.view',false),
+  ('public.operator_inventory()'::regprocedure,'inventory.view',false),
+  ('public.operator_sales()'::regprocedure,'sales.view',false),
+  ('public.operator_sale_items(uuid)'::regprocedure,'sales.view',false),
+  ('public.operator_payment_accounts()'::regprocedure,'sales.create',false),
+  ('public.operator_dashboard()'::regprocedure,'dashboard.operator.view',false),
+  ('public.separate_sale(uuid)'::regprocedure,'sales.ship',true),
+  ('public.ship_sale(uuid,text)'::regprocedure,'sales.ship',true),
+  ('public.record_sale_payment(uuid,uuid,bigint,date,text)'::regprocedure,'sales.create',true)
+ ) as x(fn,permission_code,statement_guard) loop
+  select pg_get_functiondef(item.fn::oid) into definition; original_definition:=definition;
+  if item.statement_guard then
+   definition:=replace(definition,'if not public.is_active_user() then raise exception ''not_authorized''; end if;',format('if not private.has_permission_for((select auth.uid()),%L) then raise exception ''permission_denied''; end if;',item.permission_code));
+  else
+   definition:=replace(definition,'public.is_active_user()',format('private.has_permission_for((select auth.uid()),%L)',item.permission_code));
+  end if;
+  if definition=original_definition then raise exception 'permission_guard_not_replaced:%',item.fn; end if;
+  execute definition;
+ end loop;
 end $$;
 
 -- Sale creation keeps price and discount validation, but authority comes from
 -- effective permissions rather than group names.
-do $$ declare definition text; begin
+do $$ declare definition text; original_definition text; begin
  select pg_get_functiondef('public.create_sale(text,date,bigint,bigint,text,jsonb)'::regprocedure::oid) into definition;
+ original_definition:=definition;
  definition:=replace(definition,'v_admin boolean:=public.is_admin()','v_admin boolean:=private.has_permission_for((select auth.uid()),''sales.discount'')');
  definition:=replace(definition,'if not public.is_active_user() then raise exception ''not_authorized''; end if;','if not private.has_permission_for((select auth.uid()),''sales.create'') then raise exception ''permission_denied''; end if;');
+ if definition=original_definition or definition like '%public.is_active_user()%' then raise exception 'permission_guard_not_replaced:create_sale'; end if;
  execute definition;
 end $$;
 

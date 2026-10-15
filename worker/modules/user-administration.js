@@ -5,3 +5,9 @@ export async function inviteAuthUser(env,{email,fullName,redirectTo}) {
   if(!result.ok)throw Object.assign(new Error(body?.msg||body?.message||"Não foi possível enviar o convite."),{status:result.status});
   return body;
 }
+
+export async function deleteAuthUser(env,userId) {
+  if(!env.SUPABASE_SECRET_KEY||!userId)return false;
+  const result=await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(userId)}`,{method:"DELETE",headers:{apikey:env.SUPABASE_SECRET_KEY,authorization:`Bearer ${env.SUPABASE_SECRET_KEY}`}});
+  return result.ok;
+}

@@ -8,6 +8,11 @@ for(const table of ["permission_groups","permissions","group_permissions","user_
 }
 for(const code of ["dashboard.admin.view","products.cost.view","inventory.adjust","sales.discount","finance.view","users.invite","groups.manage","audit.view"])assert.ok(sql.includes(`'${code}'`),`missing permission ${code}`);
 assert.match(sql,/last_active_administrator/);
+assert.match(sql,/private\.has_permission_for\(\(select auth\.uid\(\)\),'groups\.manage'\)/);
+assert.match(sql,/permission_guard_not_replaced/);
+assert.match(sql,/user\.group_assigned/);
+assert.match(sql,/user\.group_removed/);
+assert.match(sql,/status='accepted'/);
 assert.match(sql,/private\.has_permission_for/);
 assert.match(sql,/set search_path=''/);
 assert.match(sql,/revoke execute on function public\.current_access_context\(\) from public,anon/);

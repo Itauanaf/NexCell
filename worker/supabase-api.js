@@ -1,6 +1,6 @@
 import { calculatePricing } from "./modules/pricing.js";
 import { authorizationContext, authorizeRoute } from "./modules/authorization.js";
-import { inviteAuthUser } from "./modules/user-administration.js";
+import { inviteAuthUser, deleteAuthUser } from "./modules/user-administration.js";
 
 const response = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
@@ -80,11 +80,12 @@ async function administration(request,env,url,ctx){
   if(url.pathname==="/api/admin/overview"&&request.method==="GET")return response(await rpc(request,env,"admin_access_overview",{}));
   if(url.pathname==="/api/admin/users"&&request.method==="GET")return response({items:await rpc(request,env,"admin_users",{})});
   if(url.pathname==="/api/admin/users/invite"&&request.method==="POST"){
+    ctx.require("groups.manage");
     const b=await request.json(),email=clean(b.email,254).toLowerCase(),fullName=clean(b.fullName,120),groupIds=Array.isArray(b.groupIds)?b.groupIds:[];
     if(!/^\S+@\S+\.\S+$/.test(email)||!fullName||!groupIds.length)return response({error:"Informe nome, e-mail e ao menos um grupo."},422);
     const origin=new URL(request.url).origin,user=await inviteAuthUser(env,{email,fullName,redirectTo:`${origin}/`});
-    const invitationId=await rpc(request,env,"record_user_invitation",{p_user_id:user.id,p_email:email,p_group_ids:groupIds});
-    return response({id:user.id,invitationId},201);
+    try { const invitationId=await rpc(request,env,"record_user_invitation",{p_user_id:user.id,p_email:email,p_group_ids:groupIds}); return response({id:user.id,invitationId},201); }
+    catch(error){ await deleteAuthUser(env,user.id).catch(()=>false); throw error; }
   }
   const resend=url.pathname.match(/^\/api\/admin\/invitations\/([^/]+)\/resend$/);
   if(resend&&request.method==="POST"){

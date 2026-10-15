@@ -48,6 +48,12 @@ permissions=["users.view"];
 result=await body(await supabaseApi(request("/api/admin/groups"),env,new URL("https://nexcell.test/api/admin/groups")));
 assert.equal(result.status,403,"users.view must not grant groups.view");
 
+permissions=["users.invite"];
+const callsBeforeInvite=calls.length;
+result=await body(await supabaseApi(request("/api/admin/users/invite",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({fullName:"Novo Usuário",email:"novo@nexcell.test",groupIds:["admin"]})}),env,new URL("https://nexcell.test/api/admin/users/invite")));
+assert.equal(result.status,403,"users.invite alone must not assign privileged groups");
+assert.equal(calls.length,callsBeforeInvite+1,"denied invitation must stop after loading access context");
+
 const ctx=authorizationContext({user:{id:"u"},groups:[],permissions:["reports.operational.view"]});
 assert.equal(requiredPermission(request("/api/reports?type=revenue"),new URL("https://nexcell.test/api/reports?type=revenue"),ctx),"reports.operational.view");
 assert.throws(()=>authorizeRoute(request("/api/reports?type=result"),new URL("https://nexcell.test/api/reports?type=result"),ctx),error=>error.status===403);

@@ -1,6 +1,6 @@
 # Controle de acesso do Operador
 
-O NexCell usa o papel armazenado em `profiles.role_id`, relacionado à tabela `roles`. O cliente não decide nem altera o próprio papel.
+O controle binário descrito originalmente neste documento é preservado por compatibilidade. A evolução para múltiplos grupos e permissões efetivas está documentada em `docs/access-management.md`; o navegador não decide nem altera sua própria autoridade.
 
 ## Camadas de proteção
 

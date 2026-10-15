@@ -24,3 +24,7 @@
 - **Faturamento:** valor das vendas válidas no período, independentemente de já terem sido recebidas.
 - **Giro de produto:** quantidade vendida em um período; baixo giro inclui SKUs sem venda ou com poucas unidades vendidas.
 - **Projeção de relatório:** leitura agregada e reproduzível das operações, sem alterar os registros de origem.
+- **Grupo de permissão:** função organizacional configurável que reúne capacidades explícitas e pode ser associada a vários usuários.
+- **Permissão efetiva:** união das permissões dos grupos ativos de um usuário ativo, recalculada para cada nova operação protegida.
+- **Capacidade:** código estável que autoriza uma única leitura ou ação do ERP; todo acesso sem capacidade explícita é negado.
+- **Convite de usuário:** ativação iniciada pelo administrador e concluída pelo próprio colaborador por meio do Supabase Auth, sem compartilhamento de senha.

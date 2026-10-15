@@ -1,4 +1,6 @@
 import { calculatePricing } from "./modules/pricing.js";
+import { authorizationContext, authorizeRoute } from "./modules/authorization.js";
+import { inviteAuthUser } from "./modules/user-administration.js";
 
 const response = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
@@ -39,37 +41,30 @@ async function signedImage(request,env,key){
   return result?.signedURL ? `${env.SUPABASE_URL}/storage/v1${result.signedURL}` : null;
 }
 
-async function currentProfile(request, env) {
-  const { headers } = credentials(request, env);
-  const userResponse = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers });
-  if (!userResponse.ok) throw Object.assign(new Error("Sessão inválida ou expirada."), { status: 401 });
-  const user = await userResponse.json();
-  const rows = await rest(request, env, "profiles", `select=id,email,full_name,active,roles(name)&id=eq.${encodeURIComponent(user.id)}&limit=1`);
-  const profile = rows[0];
-  if (!profile?.active) throw Object.assign(new Error("Usuário inativo."), { status: 403 });
-  return { id: profile.id, email: profile.email, full_name: profile.full_name, role: profile.roles?.name || "Operador" };
+async function currentAccess(request, env) {
+  const access=await rpc(request,env,"current_access_context",{});
+  if(!access?.user)throw Object.assign(new Error("Sessão inválida ou usuário inativo."),{status:403});
+  return authorizationContext(access);
 }
 
-const isAdmin = profile => profile.role === "Administrador";
-
-async function operatorApi(request, env, url) {
+async function safeProjectionApi(request, env, url, ctx) {
   if (url.pathname === "/api/categories" && request.method === "GET") {
     return response({ items: await rest(request, env, "categories", "select=id,name&active=eq.true&order=name") });
   }
-  if (url.pathname === "/api/products" && request.method === "GET") {
+  if (url.pathname === "/api/products" && request.method === "GET" && !ctx.can("products.cost.view")) {
     const items = await rpc(request, env, "operator_catalog", { p_query: clean(url.searchParams.get("q"), 80), p_category: url.searchParams.get("category") || null });
     for (const item of items) item.image_key = await signedImage(request, env, item.image_key);
     return response({ items });
   }
-  if (url.pathname === "/api/inventory" && request.method === "GET") return response({ items: await rpc(request, env, "operator_inventory", {}) });
-  if (url.pathname === "/api/sales" && request.method === "GET") return response({ items: await rpc(request, env, "operator_sales", {}) });
-  if (url.pathname === "/api/sales" && request.method === "POST") {
+  if (url.pathname === "/api/inventory" && request.method === "GET" && !ctx.can("inventory.cost.view")) return response({ items: await rpc(request, env, "operator_inventory", {}) });
+  if (url.pathname === "/api/sales" && request.method === "GET" && !ctx.can("dashboard.admin.view")) return response({ items: await rpc(request, env, "operator_sales", {}) });
+  if (url.pathname === "/api/sales" && request.method === "POST" && !ctx.can("sales.discount")) {
     const b = await request.json();
     const result = await rpc(request, env, "create_sale", { p_customer_name:b.customerName, p_order_date:b.orderDate||today(), p_discount_cents:0, p_shipping_cents:Math.max(0,cents(b.shipping)||0), p_notes:b.notes||null, p_items:(b.items||[]).map(x=>({variantId:x.variantId,quantity:Math.trunc(Number(x.quantity))})) });
     return response(result, 201);
   }
   const items = url.pathname.match(/^\/api\/sales\/([^/]+)\/items$/);
-  if (items && request.method === "GET") return response({ items: await rpc(request, env, "operator_sale_items", { p_sale_id: items[1] }) });
+  if (items && request.method === "GET" && !ctx.can("dashboard.admin.view")) return response({ items: await rpc(request, env, "operator_sale_items", { p_sale_id: items[1] }) });
   const payment = url.pathname.match(/^\/api\/sales\/([^/]+)\/payments$/);
   if (payment && request.method === "POST") { const b=await request.json(); const id=await rpc(request,env,"record_sale_payment",{p_sale_id:payment[1],p_account_id:b.accountId,p_amount_cents:cents(b.amount),p_date:b.date||today(),p_method:b.method||"Outro"}); return response({ok:true,id}); }
   const separate = url.pathname.match(/^\/api\/sales\/([^/]+)\/separate$/);
@@ -77,8 +72,47 @@ async function operatorApi(request, env, url) {
   const shipment = url.pathname.match(/^\/api\/sales\/([^/]+)\/shipments$/);
   if (shipment && request.method === "POST") { const b=await request.json(); const id=await rpc(request,env,"ship_sale",{p_sale_id:shipment[1],p_tracking_code:b.trackingCode||null}); return response({ok:true,id}); }
   if (url.pathname === "/api/payment-accounts" && request.method === "GET") return response({ items: await rpc(request,env,"operator_payment_accounts",{}) });
-  if ((url.pathname === "/api/dashboard" || url.pathname === "/api/operator/dashboard") && request.method === "GET") return response(await rpc(request,env,"operator_dashboard",{}));
-  return response({ error: "Acesso restrito ao administrador." }, 403);
+  if ((url.pathname === "/api/dashboard" && !ctx.can("dashboard.admin.view") || url.pathname === "/api/operator/dashboard") && request.method === "GET") return response(await rpc(request,env,"operator_dashboard",{}));
+  return null;
+}
+
+async function administration(request,env,url,ctx){
+  if(url.pathname==="/api/admin/overview"&&request.method==="GET")return response(await rpc(request,env,"admin_access_overview",{}));
+  if(url.pathname==="/api/admin/users"&&request.method==="GET")return response({items:await rpc(request,env,"admin_users",{})});
+  if(url.pathname==="/api/admin/users/invite"&&request.method==="POST"){
+    const b=await request.json(),email=clean(b.email,254).toLowerCase(),fullName=clean(b.fullName,120),groupIds=Array.isArray(b.groupIds)?b.groupIds:[];
+    if(!/^\S+@\S+\.\S+$/.test(email)||!fullName||!groupIds.length)return response({error:"Informe nome, e-mail e ao menos um grupo."},422);
+    const origin=new URL(request.url).origin,user=await inviteAuthUser(env,{email,fullName,redirectTo:`${origin}/`});
+    const invitationId=await rpc(request,env,"record_user_invitation",{p_user_id:user.id,p_email:email,p_group_ids:groupIds});
+    return response({id:user.id,invitationId},201);
+  }
+  const resend=url.pathname.match(/^\/api\/admin\/invitations\/([^/]+)\/resend$/);
+  if(resend&&request.method==="POST"){
+    const b=await request.json(),email=clean(b.email,254).toLowerCase(),origin=new URL(request.url).origin;
+    if(!/^\S+@\S+\.\S+$/.test(email))return response({error:"E-mail inválido."},422);
+    await inviteAuthUser(env,{email,fullName:clean(b.fullName,120),redirectTo:`${origin}/`});
+    await rpc(request,env,"mark_invitation_resent",{p_invitation_id:resend[1]}); return response({ok:true});
+  }
+  const user=url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+  if(user&&request.method==="PATCH"){
+    const b=await request.json();
+    if(b.active===false)ctx.require("users.disable");
+    await rpc(request,env,"set_user_access",{p_user_id:user[1],p_full_name:clean(b.fullName,120),p_active:Boolean(b.active),p_group_ids:Array.isArray(b.groupIds)?b.groupIds:[]});
+    return response({ok:true});
+  }
+  if(url.pathname==="/api/admin/groups"&&request.method==="GET")return response({items:await rpc(request,env,"admin_permission_groups",{})});
+  if(url.pathname==="/api/admin/groups"&&request.method==="POST"){
+    const b=await request.json(),id=await rpc(request,env,"save_permission_group",{p_id:null,p_name:b.name,p_description:b.description||null,p_is_active:b.active!==false,p_permission_codes:b.permissions||[]}); return response({id},201);
+  }
+  const group=url.pathname.match(/^\/api\/admin\/groups\/([^/]+)$/);
+  if(group&&request.method==="PATCH"){
+    const b=await request.json(),id=await rpc(request,env,"save_permission_group",{p_id:group[1],p_name:b.name,p_description:b.description||null,p_is_active:b.active!==false,p_permission_codes:b.permissions||[]}); return response({ok:true,id});
+  }
+  const duplicate=url.pathname.match(/^\/api\/admin\/groups\/([^/]+)\/duplicate$/);
+  if(duplicate&&request.method==="POST")return response({id:await rpc(request,env,"duplicate_permission_group",{p_group_id:duplicate[1]})},201);
+  if(url.pathname==="/api/admin/permissions"&&request.method==="GET")return response({items:await rpc(request,env,"admin_permissions",{})});
+  if(url.pathname==="/api/admin/audit"&&request.method==="GET")return response({items:await rpc(request,env,"admin_audit_logs",{p_actor:url.searchParams.get("actor")||null,p_action:url.searchParams.get("action")||null,p_entity:url.searchParams.get("entity")||null,p_from:url.searchParams.get("from")||null,p_to:url.searchParams.get("to")||null})});
+  return null;
 }
 
 async function catalog(request, env, url) {
@@ -285,9 +319,13 @@ export async function supabaseApi(request, env, url) {
       if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) return response({ error: "Supabase não configurado no ambiente." }, 503);
       return response({ url: env.SUPABASE_URL, publishableKey: env.SUPABASE_PUBLISHABLE_KEY });
     }
-    const profile = await currentProfile(request, env);
-    if (url.pathname === "/api/session" && request.method === "GET") return response({ user: profile });
-    if (!isAdmin(profile)) return await operatorApi(request, env, url);
+    const ctx = await currentAccess(request, env);
+    if (url.pathname === "/api/session" && request.method === "GET") { const role=ctx.can("dashboard.admin.view")?"Administrador":"Operacional"; return response({ user:{...ctx.user,role}, groups:ctx.groups, permissions:ctx.permissions, role }); }
+    authorizeRoute(request,url,ctx);
+    const adminResult=await administration(request,env,url,ctx);
+    if(adminResult)return adminResult;
+    const safeResult=await safeProjectionApi(request,env,url,ctx);
+    if(safeResult)return safeResult;
     const catalogResult = await catalog(request, env, url);
     if (catalogResult) return catalogResult;
     const operationsResult = await operations(request, env, url);

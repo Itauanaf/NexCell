@@ -55,6 +55,15 @@ async function call(request, env, path, options = {}) {
 const rest = (request, env, resource, query = "") => call(request, env, `/rest/v1/${resource}${query ? `?${query}` : ""}`);
 const rpc = (request, env, name, body) => call(request, env, `/rest/v1/rpc/${name}`, { method: "POST", body: JSON.stringify(body) });
 
+async function privilegedRest(env, resource, query = "", options = {}) {
+  if (!env.SUPABASE_SECRET_KEY) throw Object.assign(new Error("SUPABASE_SECRET_KEY não configurada no servidor."), { status: 503 });
+  const result = await fetch(`${env.SUPABASE_URL}/rest/v1/${resource}${query ? `?${query}` : ""}`, {
+    ...options,
+    headers: { apikey: env.SUPABASE_SECRET_KEY, authorization: `Bearer ${env.SUPABASE_SECRET_KEY}`, "content-type": "application/json", prefer: "return=minimal,resolution=merge-duplicates", ...(options.headers || {}) }
+  });
+  if (!result.ok) throw Object.assign(new Error("Falha ao sincronizar notificações."), { status: result.status });
+}
+
 async function signedImage(request,env,key){
   if(!key)return null;
   const result=await call(request,env,`/storage/v1/object/sign/product-images/${key.split("/").map(encodeURIComponent).join("/")}`,{method:"POST",body:JSON.stringify({expiresIn:3600})});
@@ -65,6 +74,49 @@ async function currentAccess(request, env) {
   const access=await rpc(request,env,"current_access_context",{});
   if(!access?.user)throw Object.assign(new Error("Sessão inválida ou usuário inativo."),{status:403});
   return authorizationContext(access);
+}
+
+async function notificationsApi(request, env, url, ctx) {
+  if (url.pathname === "/api/notifications" && request.method === "GET") {
+    const userId = ctx.user.id;
+    const existing = await rest(request, env, "user_notifications", "select=source_key,read_at,active");
+    const prior = new Map(existing.map(item => [item.source_key, item]));
+    const items = [], add = item => items.push({ user_id: userId, active: true, read_at: prior.get(item.source_key)?.active ? prior.get(item.source_key).read_at : null, last_seen_at: new Date().toISOString(), ...item });
+    if (ctx.can("inventory.view")) {
+      const stock = await rpc(request, env, "operator_inventory", {});
+      stock.filter(item => Number(item.available) <= Number(item.minimum_stock)).slice(0, 30).forEach(item => add({ source_key: `stock:${item.variant_id}`, kind: "stock", severity: Number(item.available) <= 0 ? "urgent" : "attention", title: `Estoque crítico: ${item.name}`, message: `${item.sku} tem ${item.available} unidade(s) disponível(is); mínimo ${item.minimum_stock}.`, target_page: "Estoque", target_id: item.variant_id }));
+    }
+    if (ctx.can("purchases.view")) {
+      const purchases = await rest(request, env, "purchase_orders", "select=id,number,receipt_status,expected_date&receipt_status=neq.received&order_status=neq.cancelled&order=expected_date.asc&limit=30");
+      purchases.forEach(item => add({ source_key: `purchase:${item.id}`, kind: "purchase", severity: item.expected_date && item.expected_date < today() ? "urgent" : "attention", title: `Compra ${item.number} aguardando recebimento`, message: item.expected_date ? `Previsão de entrega: ${item.expected_date}.` : "Compra confirmada sem previsão de entrega.", target_page: "Recebimentos", target_id: item.id }));
+    }
+    if (ctx.can("sales.view") || ctx.can("sales.ship")) {
+      const sales = await rpc(request, env, "operator_sales", {});
+      sales.filter(item => ["pending", "separated"].includes(item.shipping_status)).slice(0, 30).forEach(item => add({ source_key: `shipping:${item.id}`, kind: "shipping", severity: item.shipping_status === "separated" ? "urgent" : "attention", title: `Venda ${item.number} aguardando envio`, message: item.shipping_status === "separated" ? "Pedido separado e pronto para despacho." : "Pedido aguardando separação.", target_page: "Vendas", target_id: item.id }));
+    }
+    if (ctx.can("finance.view")) {
+      const horizon = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      const [payable, receivable] = await Promise.all([
+        rest(request, env, "accounts_payable", `select=id,description,due_date,status&status=in.(pending,partial)&due_date=lte.${horizon}&order=due_date.asc&limit=30`),
+        rest(request, env, "accounts_receivable", `select=id,description,due_date,status&status=in.(pending,partial)&due_date=lte.${horizon}&order=due_date.asc&limit=30`)
+      ]);
+      [...payable.map(item => ({ ...item, direction: "pagar" })), ...receivable.map(item => ({ ...item, direction: "receber" }))].forEach(item => add({ source_key: `finance:${item.direction}:${item.id}`, kind: "finance", severity: item.due_date < today() ? "urgent" : "attention", title: `Conta a ${item.direction}: ${item.description}`, message: item.due_date < today() ? `Vencida em ${item.due_date}.` : `Vence em ${item.due_date}.`, target_page: "Financeiro", target_id: item.id }));
+    }
+    await privilegedRest(env, "user_notifications", `user_id=eq.${encodeURIComponent(userId)}&active=eq.true`, { method: "PATCH", body: JSON.stringify({ active: false }) });
+    if (items.length) await privilegedRest(env, "user_notifications", "on_conflict=user_id,source_key", { method: "POST", body: JSON.stringify(items) });
+    const notifications = await rest(request, env, "user_notifications", "select=id,kind,severity,title,message,target_page,target_id,read_at,created_at,last_seen_at&active=eq.true&order=read_at.asc.nullsfirst,last_seen_at.desc&limit=80");
+    return response({ items: notifications, unread: notifications.filter(item => !item.read_at).length });
+  }
+  const readOne = url.pathname.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if (readOne && request.method === "PATCH") {
+    await privilegedRest(env, "user_notifications", `id=eq.${encodeURIComponent(readOne[1])}&user_id=eq.${encodeURIComponent(ctx.user.id)}`, { method: "PATCH", body: JSON.stringify({ read_at: new Date().toISOString() }) });
+    return response({ ok: true });
+  }
+  if (url.pathname === "/api/notifications/read-all" && request.method === "PATCH") {
+    await privilegedRest(env, "user_notifications", `user_id=eq.${encodeURIComponent(ctx.user.id)}&active=eq.true&read_at=is.null`, { method: "PATCH", body: JSON.stringify({ read_at: new Date().toISOString() }) });
+    return response({ ok: true });
+  }
+  return null;
 }
 
 async function safeProjectionApi(request, env, url, ctx) {
@@ -342,6 +394,8 @@ export async function supabaseApi(request, env, url) {
     const authResult = await authApi(request, env, url);
     if (authResult) return authResult;
     const ctx = await currentAccess(request, env);
+    const notificationResult = await notificationsApi(request, env, url, ctx);
+    if (notificationResult) return notificationResult;
     if (url.pathname === "/api/session" && request.method === "GET") { const role=ctx.can("dashboard.admin.view")?"Administrador":"Operacional"; return response({ user:{...ctx.user,role}, groups:ctx.groups, permissions:ctx.permissions, role }); }
     authorizeRoute(request,url,ctx);
     const adminResult=await administration(request,env,url,ctx);

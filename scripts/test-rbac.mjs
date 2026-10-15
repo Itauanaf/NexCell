@@ -15,6 +15,10 @@ globalThis.fetch=async (input,init={})=>{
   if(url.endsWith("/auth/v1/invite"))return Response.json({id:"invited-user"});
   if(url.endsWith("/auth/v1/user"))return Response.json({id:"00000000-0000-0000-0000-000000000001"});
   if(url.endsWith("/rest/v1/rpc/mark_invitation_resent"))return Response.json(null);
+  if(url.includes("/rest/v1/user_notifications")){
+    if((init.method||"GET")==="GET")return Response.json([{id:"n1",kind:"stock",severity:"attention",title:"Estoque crítico",message:"SKU com saldo baixo.",target_page:"Estoque",target_id:"00000000-0000-0000-0000-000000000009",read_at:null,created_at:"2026-10-15T00:00:00Z",last_seen_at:"2026-10-15T00:00:00Z"}]);
+    return new Response(null,{status:204});
+  }
   if(url.includes("/rest/v1/suppliers"))return Response.json([]);
   if(url.includes("/rest/v1/products"))return Response.json([]);
   return Response.json({message:"mock não configurado: "+url},{status:500});
@@ -22,7 +26,16 @@ globalThis.fetch=async (input,init={})=>{
 const request=(path,options={})=>new Request("https://nexcell.test"+path,{headers:{authorization:"Bearer "+token,...(options.headers||{})},method:options.method||"GET",body:options.body});
 const body=async response=>({status:response.status,data:await response.json()});
 
-let result=await body(await supabaseApi(request("/api/products"),env,new URL("https://nexcell.test/api/products")));
+env.SUPABASE_SECRET_KEY="server-secret";
+permissions=[];
+let result=await body(await supabaseApi(request("/api/notifications"),env,new URL("https://nexcell.test/api/notifications")));
+assert.equal(result.status,200);
+assert.equal(result.data.unread,1);
+result=await body(await supabaseApi(request("/api/notifications/n1/read",{method:"PATCH"}),env,new URL("https://nexcell.test/api/notifications/n1/read")));
+assert.equal(result.status,200);
+
+permissions=["dashboard.operator.view","products.view","inventory.view","sales.view","sales.create","sales.ship"];
+result=await body(await supabaseApi(request("/api/products"),env,new URL("https://nexcell.test/api/products")));
 assert.equal(result.status,200);
 for(const forbidden of ["cost_cents","historical_cost_cents","supplier_id","profit","profit_margin"])assert.equal(forbidden in result.data.items[0],false);
 
@@ -59,7 +72,6 @@ result=await body(await supabaseApi(request("/api/admin/users/invite",{method:"P
 assert.equal(result.status,403,"users.invite alone must not assign privileged groups");
 assert.equal(calls.length,callsBeforeInvite+1,"denied invitation must stop after loading access context");
 
-env.SUPABASE_SECRET_KEY="server-secret";
 const resendStart=calls.length;
 result=await body(await supabaseApi(request("/api/admin/invitations/inv-1/resend",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"attacker@example.test",fullName:"Falso"})}),env,new URL("https://nexcell.test/api/admin/invitations/inv-1/resend")));
 assert.equal(result.status,200);

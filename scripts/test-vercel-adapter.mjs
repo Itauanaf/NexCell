@@ -25,6 +25,8 @@ assert.match(page.body,/\/api\/auth\/refresh/);
 assert.doesNotMatch(page.body,/mfaRequired|\/api\/auth\/mfa\/|Verificação em duas etapas|QR Code/);
 assert.match(page.body,/sidebar-backdrop/);
 assert.match(page.body,/body\.menu-open\{overflow:hidden\}/);
+assert.match(page.body,/@media\(min-width:781px\).*\.nav-item\{font-size:14px/s);
+assert.match(page.body,/#app \.data-table td\{font-size:13px/);
 assert.match(page.body,/closest\('#sidebar \[data-page\]'\)/);
 assert.match(page.body,/e\.key==='Escape'/);
 assert.match(page.headers["content-security-policy"],/script-src 'self' 'sha256-/);

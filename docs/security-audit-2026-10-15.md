@@ -1,16 +1,23 @@
 # NexCell ERP — Auditoria de segurança pré-operacional
 
-> Atualização de hardening: as migrations `20261015000900_security_hardening.sql` e `20261015223717_reduce_privileged_surface.sql` foram aplicadas em produção em 15 de outubro de 2026. Foram confirmados 5 gatilhos, políticas por capacidade, bloqueio de escrita direta, isolamento anônimo, helper RLS privado e rollback do teste `last_active_administrator`. Signup foi desativado e TOTP está habilitado. O código passa a usar cookies `HttpOnly`, refresh server-side e exige AAL2 para administradores após o próximo deploy. Proteção contra senhas vazadas e ensaio de restauração isolado continuam pendentes.
+> Atualização pós-auditoria: as migrations `20261015000900_security_hardening.sql` e `20261015223717_reduce_privileged_surface.sql` foram aplicadas em produção em 15 de outubro de 2026. O commit `aebfe2c` foi publicado em `https://nexcell-two.vercel.app` e validado por smoke test HTTP. Signup foi desativado, TOTP está habilitado, sessões usam cookies `HttpOnly`, o logout revoga a sessão com renovação prévia quando necessária e administradores exigem AAL2 validado pelo Supabase Auth. Proteção contra senhas vazadas, staging autenticado e ensaio de restauração isolado continuam pendentes.
 
 Data: 15 de outubro de 2026  
 Escopo: código em `6706f6d`, produção `https://nexcell-two.vercel.app` e projeto Supabase `vhiagjcluqlnddirmjum`  
 Modo: somente leitura; nenhuma correção, migration ou publicação foi realizada durante esta auditoria.
 
+As descobertas abaixo preservam o estado observado no início da auditoria. O estado de remediação atual é:
+
+- Corrigidos e publicados: SEC-001, SEC-002, SEC-003, SEC-004, SEC-006, SEC-007, SEC-008, SEC-010 e a parte de scripts da SEC-013.
+- Parcialmente corrigido: SEC-005 (helper de autorização movido para `private`; RPCs públicas intencionais ainda exigem inventário/redução) e SEC-009 (MFA/AAL2 concluído; proteção contra senhas vazadas pendente).
+- Procedimento corrigido, prova pendente: SEC-011 (runbook Supabase/Postgres/Storage atualizado; restauração isolada ainda não executada).
+- Pendente: SEC-012 e matriz autenticada real em staging.
+
 ## Resumo executivo
 
 Não foi confirmado acesso anônimo a dados, bypass de autenticação, chave administrativa pública ou alteração financeira/estoque sem autorização. A matriz anônima consultou 35 tabelas/views, 11 APIs internas e o bucket privado sem obter registros. Todas as tabelas públicas comuns possuem RLS, a view financeira usa `security_invoker=true`, o bucket `product-images` é privado e as RPCs negam execução ao papel `anon`.
 
-O sistema ainda **não deve ser liberado para uso operacional**. Há um risco alto no invariante concorrente do último administrador, além de lacunas médias em sessão/logout, cadastro público, grants, superfície `SECURITY DEFINER`, hardening HTTP, autenticação forte e recuperação. O plano de backup ainda descreve D1/R2 e não é aplicável ao Supabase. Os testes autenticados com papéis distintos não foram realizados porque não existe staging nem foram fornecidas contas fictícias; executá-los em produção violaria o escopo seguro.
+O sistema ainda **não deve ser liberado para dados comerciais/financeiros reais** até que sejam concluídos a restauração isolada, os testes autenticados por papel em staging e a proteção contra senhas vazadas. Os riscos técnicos confirmados de sessão, signup, grants e último administrador foram corrigidos; a superfície das RPCs privilegiadas permanece como risco residual controlado por guardas internas e grants explícitos.
 
 Classificação: 0 críticos confirmados, 1 alto, 10 médios e 3 baixos/observações.
 
@@ -194,7 +201,7 @@ A revisão do diff registrou ausência histórica de relatório, testes reais de
 
 ## Critério de liberação
 
-Resultado atual: **não aprovado para dados comerciais/financeiros reais**. Reavaliar após correção dos itens P0/P1, testes com Administrador/Vendedor/Estoquista/Expedição em staging, advisor revisado, backup restaurado e regressão completa. Esta conclusão não representa garantia absoluta; monitoramento, rotação de credenciais, revisão de logs e auditorias recorrentes continuam necessários.
+Resultado atual: **não aprovado para dados comerciais/financeiros reais**. Reavaliar após proteção contra senhas vazadas, testes com Administrador/Vendedor/Estoquista/Expedição em staging, inventário final das RPCs privilegiadas e restauração comprovada. A regressão automatizada e o smoke test do deploy `aebfe2c` foram aprovados. Esta conclusão não representa garantia absoluta; monitoramento, rotação de credenciais, revisão de logs e auditorias recorrentes continuam necessários.
 
 ## Referências oficiais consultadas
 

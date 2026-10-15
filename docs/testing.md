@@ -27,3 +27,13 @@ Os cenários transacionais de compras, estoque, vendas, financeiro e calculadora
 - O recebimento de 15 unidades gerou saldo e movimento com `physical_after=15`.
 - Uma entrada de 6 unidades sobre pendência 5 foi bloqueada pelo trigger.
 - Os módulos ESM de compras e estoque e o JavaScript da interface passaram na validação sintática.
+
+## Fase 4
+
+- As migrations 0001–0005 foram executadas juntas em SQLite em memória.
+- Uma venda de 3 unidades sobre físico 15 manteve físico 15, reservou 3 e deixou disponível 12.
+- A expedição reduziu o físico para 12, zerou a reserva e uma segunda expedição foi rejeitada.
+- O custo histórico permaneceu em R$ 25,00 após o custo atual mudar para R$ 31,00.
+- Uma devolução conferida de 2 unidades recompôs o físico; devolver além do saldo vendido foi bloqueado.
+- O cancelamento de outra venda liberou toda a reserva sem alterar o físico.
+- O Worker, o módulo de vendas e o JavaScript embarcado da Fase 4 passaram na validação sintática.

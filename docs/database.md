@@ -9,3 +9,5 @@ As próximas migrações adicionarão entidades por fase. Migrações aplicadas 
 `0003_purchasing_inventory.sql` adiciona pedidos, itens, pagamentos e recebimentos. Estados comercial, financeiro e logístico são independentes. A chave de idempotência do recebimento é única; itens avariados são registrados, mas não aumentam o saldo físico.
 
 `0004_deepen_purchasing.sql` cria uma projeção de compras sem multiplicação de joins. Triggers impedem pagamento acumulado acima do pedido e recebimento acima do pendente; a entrada aceita, o ledger e o status logístico são atualizados atomicamente.
+
+`0005_sales.sql` adiciona clientes, vendas, itens com custo histórico, reservas, pagamentos, expedições, cancelamentos e devoluções. A criação reserva o estoque; a expedição baixa físico e reservado uma única vez; o cancelamento libera a reserva; e apenas a devolução conferida recompõe o físico, limitada à quantidade expedida.

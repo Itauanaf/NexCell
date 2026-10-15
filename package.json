@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bash scripts/build.sh"
+    "build": "node scripts/build.mjs",
+    "test:sales": "node scripts/test-sales.mjs",
+    "preview": "node scripts/render-preview.mjs"
   }
 }

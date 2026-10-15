@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "config:embed-supabase": "node scripts/embed-public-supabase.mjs",
     "dev:supabase": "node scripts/dev-supabase.mjs",
     "test:sales": "node scripts/test-sales.mjs",
     "test:finance": "node scripts/test-finance.mjs",

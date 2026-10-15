@@ -5,6 +5,7 @@ import { createFinanceModule, FinanceError } from "./modules/finance.js";
 import { createPricingModule, calculatePricing, PricingError } from "./modules/pricing.js";
 import { createReportingModule, ReportingError } from "./modules/reporting.js";
 import { supabaseApi } from "./supabase-api.js";
+import { PUBLIC_SUPABASE_CONFIG } from "./public-supabase-config.js";
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
@@ -311,6 +312,8 @@ export { phase9Page };
 
 export default {
   async fetch(request, env) {
+    const runtimeEnv = Object.fromEntries(Object.entries(env || {}).filter(([, value]) => value !== undefined && value !== null && value !== ""));
+    env = runtimeEnv.USE_LEGACY_D1 ? runtimeEnv : { ...PUBLIC_SUPABASE_CONFIG, ...runtimeEnv };
     const url = new URL(request.url);
     try {
       if (url.pathname.startsWith("/api/") && env.SUPABASE_URL) return await supabaseApi(request, env, url);

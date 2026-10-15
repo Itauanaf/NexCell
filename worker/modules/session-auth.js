@@ -42,38 +42,13 @@ async function authCall(env, path, { method = "POST", body, token } = {}) {
   return result;
 }
 
-export const tokenAal = token => {
-  try {
-    const encoded = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    const decoded = decodeURIComponent(Array.from(atob(encoded), character => `%${character.charCodeAt(0).toString(16).padStart(2, "0")}`).join(""));
-    return JSON.parse(decoded).aal || "aal1";
-  }
-  catch { return "aal1"; }
-};
-
-export async function verifiedTokenAal(request, env) {
-  const token = accessToken(request);
-  if (!token) return "aal1";
-  await authCall(env, "user", { method: "GET", token });
-  return tokenAal(token);
-}
-
-async function isAdministrator(env, token) {
-  const response = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/current_access_context`, { method: "POST", headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, authorization: `Bearer ${token}`, "content-type": "application/json" }, body: "{}" });
-  if (!response.ok) return false;
-  const context = await response.json();
-  return context?.permissions?.includes("dashboard.admin.view") === true;
-}
-
 export async function authApi(request, env, url) {
   if (!url.pathname.startsWith("/api/auth/")) return null;
   try {
     if (url.pathname === "/api/auth/login" && request.method === "POST") {
       const body = await request.json();
       const session = await authCall(env, "token?grant_type=password", { body: { email: String(body.email || "").trim().toLowerCase(), password: String(body.password || "") } });
-      const admin = await isAdministrator(env, session.access_token);
-      const factors = (session.user?.factors || []).filter(factor => factor.status === "verified" && factor.factor_type === "totp");
-      return json({ authenticated: !admin || tokenAal(session.access_token) === "aal2", mfaRequired: admin && tokenAal(session.access_token) !== "aal2", enrollmentRequired: admin && factors.length === 0, factorId: factors[0]?.id || null }, 200, sessionHeaders(session));
+      return json({ authenticated: true }, 200, sessionHeaders(session));
     }
     if (url.pathname === "/api/auth/refresh" && request.method === "POST") {
       const refreshToken = cookies(request)[REFRESH_COOKIE];
@@ -98,27 +73,6 @@ export async function authApi(request, env, url) {
         }
       }
       return json({ ok: true }, 200, clearHeaders());
-    }
-    if (url.pathname === "/api/auth/mfa/enroll" && request.method === "POST") {
-      const token = accessToken(request);
-      if (!token) return json({ error: "Autenticação necessária." }, 401);
-      const factor = await authCall(env, "factors", { token, body: { factor_type: "totp", friendly_name: "NexCell ERP" } });
-      return json({ id: factor.id, qrCode: factor.totp?.qr_code, secret: factor.totp?.secret });
-    }
-    if (url.pathname === "/api/auth/mfa/status" && request.method === "GET") {
-      const token = accessToken(request);
-      if (!token) return json({ error: "Autenticação necessária." }, 401);
-      const user = await authCall(env, "user", { method: "GET", token });
-      const factors = (user.factors || []).filter(factor => factor.factor_type === "totp");
-      const verified = factors.find(factor => factor.status === "verified");
-      return json({ enrollmentRequired: !verified, factorId: verified?.id || null });
-    }
-    if (url.pathname === "/api/auth/mfa/verify" && request.method === "POST") {
-      const token = accessToken(request), body = await request.json();
-      if (!token) return json({ error: "Autenticação necessária." }, 401);
-      const challenge = await authCall(env, `factors/${encodeURIComponent(body.factorId)}/challenge`, { token, body: {} });
-      const session = await authCall(env, `factors/${encodeURIComponent(body.factorId)}/verify`, { token, body: { challenge_id: challenge.id, code: String(body.code || "").trim() } });
-      return json({ ok: true }, 200, sessionHeaders(session));
     }
     return json({ error: "Rota de autenticação não encontrada." }, 404);
   } catch (error) {

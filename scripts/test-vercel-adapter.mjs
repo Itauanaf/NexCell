@@ -22,6 +22,7 @@ assert.equal(page.status,200);assert.match(page.body,/NexCell ERP/);assert.doesN
 assert.doesNotMatch(page.body,/Criar primeira conta|\/auth\/v1\/signup/);
 assert.match(page.body,/\/api\/auth\/logout/);
 assert.match(page.body,/\/api\/auth\/refresh/);
+assert.doesNotMatch(page.body,/mfaRequired|\/api\/auth\/mfa\/|Verificação em duas etapas|QR Code/);
 assert.match(page.body,/sidebar-backdrop/);
 assert.match(page.body,/body\.menu-open\{overflow:hidden\}/);
 assert.match(page.body,/closest\('#sidebar \[data-page\]'\)/);

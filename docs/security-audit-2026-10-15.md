@@ -9,7 +9,7 @@ Modo: somente leitura; nenhuma correção, migration ou publicação foi realiza
 As descobertas abaixo preservam o estado observado no início da auditoria. O estado de remediação atual é:
 
 - Corrigidos e publicados: SEC-001, SEC-002, SEC-003, SEC-004, SEC-006, SEC-007, SEC-008, SEC-010 e a parte de scripts da SEC-013.
-- Parcialmente corrigido: SEC-005 (helper de autorização movido para `private`; RPCs públicas intencionais ainda exigem inventário/redução) e SEC-009 (MFA/AAL2 concluído; proteção contra senhas vazadas pendente).
+- Parcialmente corrigido: SEC-005 (helper de autorização movido para `private`; RPCs públicas intencionais ainda exigem inventário/redução). SEC-009 permanece como risco aceito: o responsável optou por login somente com senha forte, sem MFA e sem proteção contra senhas vazadas por limitação do plano Free.
 - Procedimento corrigido, prova pendente: SEC-011 (runbook Supabase/Postgres/Storage atualizado; restauração isolada ainda não executada).
 - Pendente: SEC-012 e matriz autenticada real em staging.
 

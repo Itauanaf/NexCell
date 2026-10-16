@@ -16,6 +16,7 @@
     "test:permissions-schema": "node scripts/test-permissions-schema.mjs",
     "test:vercel": "node scripts/test-vercel-adapter.mjs",
     "test:session-auth": "node scripts/test-session-auth.mjs",
+    "test:user-administration": "node scripts/test-user-administration.mjs",
     "preview": "node scripts/render-preview.mjs"
   }
 }

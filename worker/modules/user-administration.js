@@ -14,6 +14,18 @@ export async function inviteAuthUser(env,{email,fullName,redirectTo}) {
   return body;
 }
 
+export async function createAuthUser(env, { email, fullName, password }) {
+  if (!env.SUPABASE_SECRET_KEY) throw Object.assign(new Error("SUPABASE_SECRET_KEY não configurada no servidor."), { status: 503 });
+  const result = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: adminHeaders(env.SUPABASE_SECRET_KEY, { "content-type": "application/json" }),
+    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { full_name: fullName } })
+  });
+  const body = await result.json().catch(() => null);
+  if (!result.ok) throw Object.assign(new Error(body?.msg || body?.message || "Não foi possível criar o usuário."), { status: result.status });
+  return body;
+}
+
 export async function sendPasswordRecovery(env, { email, redirectTo }) {
   if (!env.SUPABASE_PUBLISHABLE_KEY) throw Object.assign(new Error("SUPABASE_PUBLISHABLE_KEY não configurada no servidor."), { status: 503 });
   const result = await fetch(`${env.SUPABASE_URL}/auth/v1/recover`, {

@@ -1,6 +1,6 @@
 import { calculatePricing } from "./modules/pricing.js";
 import { authorizationContext, authorizeRoute } from "./modules/authorization.js";
-import { inviteAuthUser, deleteAuthUser, sendPasswordRecovery } from "./modules/user-administration.js";
+import { inviteAuthUser, createAuthUser, deleteAuthUser, sendPasswordRecovery } from "./modules/user-administration.js";
 import { accessToken, authApi } from "./modules/session-auth.js";
 
 const response = (data, status = 200) => new Response(JSON.stringify(data), {
@@ -151,6 +151,15 @@ async function safeProjectionApi(request, env, url, ctx) {
 async function administration(request,env,url,ctx){
   if(url.pathname==="/api/admin/overview"&&request.method==="GET")return response(await rpc(request,env,"admin_access_overview",{}));
   if(url.pathname==="/api/admin/users"&&request.method==="GET")return response({items:await rpc(request,env,"admin_users",{})});
+  if(url.pathname==="/api/admin/users"&&request.method==="POST"){
+    ctx.require("users.invite");
+    const b=await request.json(),email=clean(b.email,254).toLowerCase(),fullName=clean(b.fullName,120),password=String(b.password||""),groupIds=Array.isArray(b.groupIds)?b.groupIds:[];
+    const strong=/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,}$/.test(password);
+    if(!/^\S+@\S+\.\S+$/.test(email)||!fullName||!groupIds.length||!strong)return response({error:"Informe nome, e-mail, grupo e uma senha forte com 12 caracteres, maiúscula, minúscula, número e símbolo."},422);
+    const user=await createAuthUser(env,{email,fullName,password});
+    try { await rpc(request,env,"record_created_user",{p_user_id:user.id,p_email:email,p_group_ids:groupIds}); return response({id:user.id},201); }
+    catch(error){ await deleteAuthUser(env,user.id).catch(()=>false); throw error; }
+  }
   if(url.pathname==="/api/admin/users/invite"&&request.method==="POST"){
     ctx.require("groups.manage");
     const b=await request.json(),email=clean(b.email,254).toLowerCase(),fullName=clean(b.fullName,120),groupIds=Array.isArray(b.groupIds)?b.groupIds:[];

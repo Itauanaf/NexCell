@@ -20,7 +20,7 @@ const routes = [
   ["POST",/^\/api\/pricing\/calculate$/,"pricing.view"],["POST",/^\/api\/pricing\/variants\/[^/]+\/apply$/,"pricing.apply"],
   ["GET",/^\/api\/reports$/,(ctx,url)=>["result","margin-sku","inventory-value","expenses-category","cash-flow"].includes(url.searchParams.get("type"))?"reports.financial.view":"reports.operational.view"],
   ["GET",/^\/api\/settings$/,"dashboard.admin.view"],["PUT",/^\/api\/settings$/,"dashboard.admin.view"],
-  ["GET",/^\/api\/admin\/overview$/,"users.view"],["GET",/^\/api\/admin\/users$/,"users.view"],["POST",/^\/api\/admin\/users\/invite$/,"users.invite"],
+  ["GET",/^\/api\/admin\/overview$/,"users.view"],["GET",/^\/api\/admin\/users$/,"users.view"],["POST",/^\/api\/admin\/users$/,"users.invite"],["POST",/^\/api\/admin\/users\/invite$/,"users.invite"],
   ["POST",/^\/api\/admin\/invitations\/[^/]+\/resend$/,"users.invite"],
   ["DELETE",/^\/api\/admin\/users\/[^/]+$/,"users.delete"],
   ["PATCH",/^\/api\/admin\/users\/[^/]+$/,"users.edit"],["GET",/^\/api\/admin\/groups$/,"groups.view"],["POST",/^\/api\/admin\/groups$/,"groups.manage"],

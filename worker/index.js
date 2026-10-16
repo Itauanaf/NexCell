@@ -352,6 +352,7 @@ const legacyLogout=`document.addEventListener('click',e=>{const link=e.target.cl
 const secureLogout=`document.addEventListener('click',async e=>{const link=e.target.closest('.aside-foot>a');if(!link)return;e.preventDefault();const session=saved();try{if(session?.access_token){const c=await getConfig();await nativeFetch(c.url+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:c.publishableKey,authorization:'Bearer '+session.access_token}})}}finally{localStorage.removeItem('nexcell.supabase.session');location.reload()}})`;
 const invitationBody=`,headers:{'content-type':'application/json'},body:JSON.stringify({email:user.email,fullName:user.name})`;
 function securedPage(){return phase14Page()
+  .replace('</title>','</title><link rel="icon" type="image/png" href="/nexcell-icon.png"><link rel="apple-touch-icon" href="/nexcell-icon.png">')
   .replace('Entre com sua conta segura. O primeiro cadastro confirmado será o administrador.','Entre com a conta criada pelo administrador da NexCell.')
   .replace('<button class="secondary" name="action" value="signup">Criar primeira conta</button>','')
   .replace("path=submit==='signup'?'/auth/v1/signup':'/auth/v1/token?grant_type=password'","path='/auth/v1/token?grant_type=password'")

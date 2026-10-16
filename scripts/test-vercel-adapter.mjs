@@ -19,6 +19,7 @@ async function invoke(path,{method="GET",headers:extraHeaders={}}={}){
 
 const page=await invoke("/api/handler?__path=");
 assert.equal(page.status,200);assert.match(page.body,/NexCell ERP/);assert.doesNotMatch(page.body,/nexcell\.supabase\.session|localStorage/);
+assert.match(page.body,/<link rel="icon" type="image\/png" href="\/nexcell-icon\.png">/);
 assert.doesNotMatch(page.body,/Criar primeira conta|\/auth\/v1\/signup/);
 assert.match(page.body,/\/api\/auth\/logout/);
 assert.match(page.body,/\/api\/auth\/refresh/);

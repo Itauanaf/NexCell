@@ -35,6 +35,7 @@ assert.match(page.body,/e\.key==='Escape'/);
 assert.match(page.body,/location\.hash\.match\(\/\^#module=/);
 assert.match(page.body,/history\.replaceState\(null,'','#module='/);
 assert.match(page.body,/isAllowed\(desired\)/);
+assert.match(page.body,/#newTransfer\.row-actions\{display:inline-flex/);
 assert.match(page.headers["content-security-policy"],/script-src 'self' 'sha256-/);
 assert.doesNotMatch(page.headers["content-security-policy"],/script-src[^;]*unsafe-inline/);
 const config=await invoke("/api/handler?__path=api%2Fconfig");

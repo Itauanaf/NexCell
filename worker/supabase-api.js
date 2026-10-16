@@ -19,7 +19,7 @@ function publicError(error) {
   if (error?.status === 409) return { status: 409, message: "A operação conflita com os dados atuais." };
   if (error?.status === 413) return { status: 413, message: "A solicitação excede o tamanho permitido." };
   if (error?.status === 422) return { status: 422, message: "Os dados informados são inválidos." };
-  if (error?.status === 429) return { status: 429, message: "Muitas tentativas. Aguarde e tente novamente." };
+  if (error?.status === 429) return { status: 429, message: "Limite de e-mails do Supabase atingido (2 por hora no provedor padrão). Aguarde até 1 hora e tente novamente." };
   if (error?.status === 503) return { status: 503, message: "Serviço temporariamente indisponível." };
   return { status: 500, message: "Falha interna no servidor." };
 }

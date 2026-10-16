@@ -8,6 +8,7 @@ let logoutFailures = 0;
 globalThis.fetch = async (input, init = {}) => {
   const url = String(input); calls.push({ url, init });
   if (url.includes("token?grant_type=password")) return Response.json({ access_token: jwt("aal1"), refresh_token: "refresh-1", expires_in: 3600, user: { factors: [] } });
+  if (url.endsWith("/auth/v1/user") && init.method === "PUT") return Response.json({ id: "invited-user" });
   if (url.includes("token?grant_type=refresh_token")) return Response.json({ access_token: jwt("aal1"), refresh_token: "refresh-3", expires_in: 3600 });
   if (url.includes("logout?scope=local")) {
     if (logoutFailures > 0) { logoutFailures -= 1; return Response.json({ message: "expired" }, { status: 401 }); }
@@ -24,6 +25,11 @@ const loginCookies = response.headers.getSetCookie();
 assert.equal(loginCookies.length, 2);
 assert.ok(loginCookies.every(cookie => /HttpOnly.*Secure.*SameSite=Lax/.test(cookie)));
 assert.ok(loginCookies.every(cookie => !cookie.includes("strong-password")));
+
+response = await authApi(request("/api/auth/accept-invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accessToken: "invite-access", refreshToken: "invite-refresh", password: "Strong-password-123!" }) }), env, new URL("https://nexcell.test/api/auth/accept-invite"));
+assert.equal(response.status, 200);
+assert.ok(calls.some(call => call.url.endsWith("/auth/v1/user")));
+assert.equal(response.headers.getSetCookie().length, 2);
 
 const cookie = `nexcell_access=${encodeURIComponent(jwt("aal1"))}; nexcell_refresh=refresh-1`;
 assert.equal(accessToken(request("/api/session", { headers: { cookie } })), jwt("aal1"));

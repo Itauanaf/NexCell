@@ -50,6 +50,16 @@ export async function authApi(request, env, url) {
       const session = await authCall(env, "token?grant_type=password", { body: { email: String(body.email || "").trim().toLowerCase(), password: String(body.password || "") } });
       return json({ authenticated: true }, 200, sessionHeaders(session));
     }
+    if (url.pathname === "/api/auth/accept-invite" && request.method === "POST") {
+      const body = await request.json();
+      const accessToken = String(body.accessToken || "");
+      const refreshToken = String(body.refreshToken || "");
+      const password = String(body.password || "");
+      if (!accessToken || !refreshToken || password.length < 12) return json({ error: "Convite inválido ou senha muito curta." }, 422);
+      await authCall(env, "user", { method: "PUT", token: accessToken, body: { password } });
+      const session = await authCall(env, "token?grant_type=refresh_token", { body: { refresh_token: refreshToken } });
+      return json({ authenticated: true }, 200, sessionHeaders(session));
+    }
     if (url.pathname === "/api/auth/refresh" && request.method === "POST") {
       const refreshToken = cookies(request)[REFRESH_COOKIE];
       if (!refreshToken) return json({ error: "Sessão expirada." }, 401, clearHeaders());

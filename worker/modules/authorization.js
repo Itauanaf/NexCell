@@ -22,6 +22,7 @@ const routes = [
   ["GET",/^\/api\/settings$/,"dashboard.admin.view"],["PUT",/^\/api\/settings$/,"dashboard.admin.view"],
   ["GET",/^\/api\/admin\/overview$/,"users.view"],["GET",/^\/api\/admin\/users$/,"users.view"],["POST",/^\/api\/admin\/users\/invite$/,"users.invite"],
   ["POST",/^\/api\/admin\/invitations\/[^/]+\/resend$/,"users.invite"],
+  ["DELETE",/^\/api\/admin\/users\/[^/]+$/,"users.delete"],
   ["PATCH",/^\/api\/admin\/users\/[^/]+$/,"users.edit"],["GET",/^\/api\/admin\/groups$/,"groups.view"],["POST",/^\/api\/admin\/groups$/,"groups.manage"],
   ["PATCH",/^\/api\/admin\/groups\/[^/]+$/,"groups.manage"],["POST",/^\/api\/admin\/groups\/[^/]+\/duplicate$/,"groups.manage"],
   ["GET",/^\/api\/admin\/permissions$/,"groups.view"],["GET",/^\/api\/admin\/audit$/,"audit.view"]

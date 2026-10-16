@@ -12,7 +12,10 @@ globalThis.fetch=async (input,init={})=>{
   if(url.endsWith("/rest/v1/rpc/admin_access_overview"))return Response.json({active_users:2,inactive_users:1,pending_invitations:1,groups:4});
   if(url.endsWith("/rest/v1/rpc/admin_permission_groups"))return Response.json([]);
   if(url.endsWith("/rest/v1/rpc/invitation_for_resend"))return Response.json({email:"canonical@nexcell.test",full_name:"Nome Canônico"});
+  if(url.endsWith("/rest/v1/rpc/authorize_user_deletion"))return Response.json({id:"00000000-0000-0000-0000-000000000002",email:"remove@nexcell.test",name:"Remover"});
+  if(url.endsWith("/rest/v1/rpc/record_user_deletion"))return Response.json(null);
   if(url.endsWith("/auth/v1/invite"))return Response.json({id:"invited-user"});
+  if(url.includes("/auth/v1/admin/users/")&&init.method==="DELETE")return Response.json({});
   if(url.endsWith("/auth/v1/user"))return Response.json({id:"00000000-0000-0000-0000-000000000001"});
   if(url.endsWith("/rest/v1/rpc/mark_invitation_resent"))return Response.json(null);
   if(url.includes("/rest/v1/user_notifications")){
@@ -65,6 +68,12 @@ assert.equal(result.status,200);
 permissions=["users.view"];
 result=await body(await supabaseApi(request("/api/admin/groups"),env,new URL("https://nexcell.test/api/admin/groups")));
 assert.equal(result.status,403,"users.view must not grant groups.view");
+
+permissions=["users.delete"];
+groups=[{id:"admin",name:"Administrador"}];
+result=await body(await supabaseApi(request("/api/admin/users/00000000-0000-0000-0000-000000000002",{method:"DELETE"}),env,new URL("https://nexcell.test/api/admin/users/00000000-0000-0000-0000-000000000002")));
+assert.equal(result.status,200,"administrator with users.delete can remove another user");
+assert.ok(calls.some(call=>call.url.includes("/auth/v1/admin/users/")&&call.init.method==="DELETE"));
 
 permissions=["users.invite"];
 const callsBeforeInvite=calls.length;

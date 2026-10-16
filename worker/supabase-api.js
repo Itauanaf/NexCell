@@ -167,6 +167,20 @@ async function administration(request,env,url,ctx){
     await rpc(request,env,"mark_invitation_resent",{p_invitation_id:resend[1]}); return response({ok:true});
   }
   const user=url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+  if(user&&request.method==="DELETE"){
+    ctx.require("users.delete");
+    let target;
+    try { target=await rpc(request,env,"authorize_user_deletion",{p_user_id:user[1]}); }
+    catch(error){
+      if(error.message.includes("cannot_delete_self"))return response({error:"Você não pode excluir a própria conta."},409);
+      if(error.message.includes("last_active_administrator"))return response({error:"Não é possível excluir o último administrador ativo."},409);
+      throw error;
+    }
+    const deleted=await deleteAuthUser(env,user[1]);
+    if(!deleted)return response({error:"Este usuário possui histórico operacional e não pode ser excluído. Desative o acesso em Editar."},409);
+    await rpc(request,env,"record_user_deletion",{p_user_id:user[1],p_email:target.email,p_name:target.name});
+    return response({ok:true});
+  }
   if(user&&request.method==="PATCH"){
     const b=await request.json();
     if(b.active===false)ctx.require("users.disable");

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { inviteAuthUser } from "../worker/modules/user-administration.js";
+import { inviteAuthUser, sendPasswordRecovery } from "../worker/modules/user-administration.js";
 
 const originalFetch = globalThis.fetch;
 
@@ -28,6 +28,18 @@ try {
   const legacy = await captureHeaders("eyJlegacy-service-role-token");
   assert.equal(legacy.apikey, "eyJlegacy-service-role-token");
   assert.equal(legacy.authorization, "Bearer eyJlegacy-service-role-token");
+
+  let recoveryRequest;
+  globalThis.fetch = async (url, options) => {
+    recoveryRequest = { url, options };
+    return Response.json({});
+  };
+  await sendPasswordRecovery(
+    { SUPABASE_URL: "https://example.supabase.co", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_example" },
+    { email: "user@example.com", redirectTo: "https://example.com/" }
+  );
+  assert.ok(recoveryRequest.url.endsWith("/auth/v1/recover"));
+  assert.equal(recoveryRequest.options.headers.apikey, "sb_publishable_example");
 
   console.log("user administration: ok");
 } finally {

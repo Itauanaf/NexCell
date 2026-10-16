@@ -1,6 +1,6 @@
 import { calculatePricing } from "./modules/pricing.js";
 import { authorizationContext, authorizeRoute } from "./modules/authorization.js";
-import { inviteAuthUser, deleteAuthUser } from "./modules/user-administration.js";
+import { inviteAuthUser, deleteAuthUser, sendPasswordRecovery } from "./modules/user-administration.js";
 import { accessToken, authApi } from "./modules/session-auth.js";
 
 const response = (data, status = 200) => new Response(JSON.stringify(data), {
@@ -162,7 +162,8 @@ async function administration(request,env,url,ctx){
   const resend=url.pathname.match(/^\/api\/admin\/invitations\/([^/]+)\/resend$/);
   if(resend&&request.method==="POST"){
     const invitation=await rpc(request,env,"invitation_for_resend",{p_invitation_id:resend[1]}),origin=applicationOrigin(env);
-    await inviteAuthUser(env,{email:invitation.email,fullName:clean(invitation.full_name,120),redirectTo:`${origin}/`});
+    try { await inviteAuthUser(env,{email:invitation.email,fullName:clean(invitation.full_name,120),redirectTo:`${origin}/`}); }
+    catch(error){ if(![400,422].includes(error.status))throw error; await sendPasswordRecovery(env,{email:invitation.email,redirectTo:`${origin}/`}); }
     await rpc(request,env,"mark_invitation_resent",{p_invitation_id:resend[1]}); return response({ok:true});
   }
   const user=url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);

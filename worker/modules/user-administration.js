@@ -14,6 +14,18 @@ export async function inviteAuthUser(env,{email,fullName,redirectTo}) {
   return body;
 }
 
+export async function sendPasswordRecovery(env, { email, redirectTo }) {
+  if (!env.SUPABASE_PUBLISHABLE_KEY) throw Object.assign(new Error("SUPABASE_PUBLISHABLE_KEY não configurada no servidor."), { status: 503 });
+  const result = await fetch(`${env.SUPABASE_URL}/auth/v1/recover`, {
+    method: "POST",
+    headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, "content-type": "application/json" },
+    body: JSON.stringify({ email, redirect_to: redirectTo })
+  });
+  const body = await result.json().catch(() => null);
+  if (!result.ok) throw Object.assign(new Error(body?.msg || body?.message || "Não foi possível reenviar o acesso."), { status: result.status });
+  return body;
+}
+
 export async function deleteAuthUser(env,userId) {
   if(!env.SUPABASE_SECRET_KEY||!userId)return false;
   const result=await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(userId)}`,{method:"DELETE",headers:adminHeaders(env.SUPABASE_SECRET_KEY)});

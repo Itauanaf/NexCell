@@ -1,0 +1,6 @@
+
+> dev:supabase
+> node scripts/dev-supabase.mjs
+
+NexCell com Supabase: http://localhost:4173
+Pressione Ctrl+C para encerrar.

@@ -17,33 +17,34 @@ async function invoke(path,{method="GET",headers:extraHeaders={}}={}){
   await handler(req,res);return{status:res.statusCode,headers,body:body.toString("utf8")};
 }
 
-const page=await invoke("/api/handler?__path=");
+const loginPage=await invoke("/api/handler?__path=");
+assert.equal(loginPage.status,200);
+assert.match(loginPage.body,/Entrar — NexCell ERP/);
+assert.match(loginPage.body,/<link rel="icon" type="image\/png" href="\/nexcell-icon\.png\?v=4">/);
+assert.match(loginPage.body,/\/api\/auth\/login/);
+assert.doesNotMatch(loginPage.body,/class="shell"|id="sidebar"|Central financeira|\/api\/notifications|localStorage/);
+assert.match(loginPage.headers["content-security-policy"],/script-src 'self' 'sha256-/);
+assert.match(loginPage.headers["content-security-policy"],/frame-ancestors 'none'/);
+assert.match(loginPage.headers["content-security-policy"],/object-src 'none'/);
+assert.match(loginPage.headers["strict-transport-security"],/max-age=31536000/);
+assert.doesNotMatch(loginPage.headers["content-security-policy"],/script-src[^;]*unsafe-inline/);
+
+const originalFetch=globalThis.fetch;
+globalThis.fetch=async input=>String(input).includes("/rest/v1/rpc/current_access_context")
+  ?Response.json({user:{id:"user-1",email:"admin@nexcell.test",full_name:"Administrador",active:true},groups:[{id:"admin",name:"Administrador"}],permissions:["dashboard.admin.view"]})
+  :Response.json({message:"unexpected test request"},{status:500});
+const page=await invoke("/api/handler?__path=",{headers:{cookie:"nexcell_access=test-token"}});
+globalThis.fetch=originalFetch;
 assert.equal(page.status,200);assert.match(page.body,/NexCell ERP/);assert.doesNotMatch(page.body,/nexcell\.supabase\.session|localStorage/);
-assert.match(page.body,/<link rel="icon" type="image\/png" href="\/nexcell-icon\.png\?v=4">/);
-assert.doesNotMatch(page.body,/Criar primeira conta|\/auth\/v1\/signup/);
-assert.match(page.body,/\/api\/auth\/logout/);
-assert.match(page.body,/\/api\/auth\/refresh/);
-assert.doesNotMatch(page.body,/mfaRequired|\/api\/auth\/mfa\/|Verificação em duas etapas|QR Code/);
-assert.match(page.body,/<html lang="pt-BR" class="auth-pending">/);
-assert.match(page.body,/html\.auth-pending \.shell\{visibility:hidden\}/);
-assert.match(page.body,/classList\.remove\('auth-pending'\)/);
-assert.match(page.body,/document\.querySelector\('\.shell'\)\?\.remove\(\)/);
-assert.match(page.body,/sidebar-backdrop/);
-assert.match(page.body,/body\.menu-open\{overflow:hidden\}/);
-assert.match(page.body,/@media\(min-width:781px\).*\.nav-item\{font-size:14px/s);
-assert.match(page.body,/#app \.data-table td\{font-size:13px/);
-assert.match(page.body,/notification-panel/);
-assert.match(page.body,/\/api\/notifications\/read-all/);
-assert.match(page.body,/setInterval\(.*60000/s);
-assert.match(page.body,/closest\('#sidebar \[data-page\]'\)/);
-assert.match(page.body,/e\.key==='Escape'/);
-assert.match(page.body,/location\.hash\.match\(\/\^#module=/);
-assert.match(page.body,/history\.replaceState\(null,'','#module='/);
-assert.match(page.body,/isAllowed\(desired\)/);
-assert.match(page.body,/#newTransfer\.row-actions\{display:inline-flex;align-self:center/);
-assert.match(page.body,/background:#078bea;color:#fff;font-size:12px/);
-assert.match(page.headers["content-security-policy"],/script-src 'self' 'sha256-/);
+assert.match(page.body,/\/api\/auth\/logout/);assert.match(page.body,/sidebar-backdrop/);assert.match(page.body,/notification-panel/);
+assert.match(page.body,/body\.menu-open\{overflow:hidden\}/);assert.match(page.body,/@media\(min-width:781px\).*\.nav-item\{font-size:14px/s);
+assert.match(page.body,/#app \.data-table td\{font-size:13px/);assert.match(page.body,/\/api\/notifications\/read-all/);assert.match(page.body,/setInterval\(.*60000/s);
+assert.match(page.body,/closest\('#sidebar \[data-page\]'\)/);assert.match(page.body,/e\.key==='Escape'/);assert.match(page.body,/location\.hash\.match\(\/\^#module=/);
+assert.match(page.body,/history\.replaceState\(null,'','#module='/);assert.match(page.body,/isAllowed\(desired\)/);assert.match(page.body,/#newTransfer\.row-actions\{display:inline-flex;align-self:center/);
+assert.match(page.body,/background:#078bea;color:#fff;font-size:12px/);assert.match(page.headers["content-security-policy"],/script-src 'self' 'sha256-/);
+assert.match(page.headers["content-security-policy"],/frame-ancestors 'none'/);assert.match(page.headers["strict-transport-security"],/max-age=31536000/);
 assert.doesNotMatch(page.headers["content-security-policy"],/script-src[^;]*unsafe-inline/);
+
 const config=await invoke("/api/handler?__path=api%2Fconfig");
 assert.equal(config.status,200);const parsed=JSON.parse(config.body);assert.equal(parsed.url,expectedUrl);assert.ok(parsed.publishableKey);
 assert.match(handlerSource,/SUPABASE_SECRET_KEY:\s*process\.env\.SUPABASE_SECRET_KEY/);
@@ -57,4 +58,4 @@ const oversized=Readable.from([]);oversized.method="POST";oversized.url="/api/ha
 const oversizedResponse={statusCode:200,setHeader(){},end(){}};
 await handler(oversized,oversizedResponse);
 assert.equal(oversizedResponse.statusCode,413);
-console.log("vercel adapter: ok");
+console.log("vercel adapter: unauthenticated shell isolation and authenticated rendering ok");

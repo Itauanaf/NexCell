@@ -27,6 +27,7 @@ assert.doesNotMatch(page.body,/mfaRequired|\/api\/auth\/mfa\/|Verificação em d
 assert.match(page.body,/<html lang="pt-BR" class="auth-pending">/);
 assert.match(page.body,/html\.auth-pending \.shell\{visibility:hidden\}/);
 assert.match(page.body,/classList\.remove\('auth-pending'\)/);
+assert.match(page.body,/document\.querySelector\('\.shell'\)\?\.remove\(\)/);
 assert.match(page.body,/sidebar-backdrop/);
 assert.match(page.body,/body\.menu-open\{overflow:hidden\}/);
 assert.match(page.body,/@media\(min-width:781px\).*\.nav-item\{font-size:14px/s);

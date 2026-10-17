@@ -353,6 +353,7 @@ const secureLogout=`document.addEventListener('click',async e=>{const link=e.tar
 const invitationBody=`,headers:{'content-type':'application/json'},body:JSON.stringify({email:user.email,fullName:user.name})`;
 function securedPage(){return phase14Page()
   .replace('</title>','</title><link rel="icon" type="image/png" href="/nexcell-icon.png?v=4"><link rel="apple-touch-icon" href="/nexcell-icon.png?v=4">')
+  .replace("function shell(content){document.querySelector('.auth-gate')?.remove();","function shell(content){document.querySelector('.auth-gate')?.remove();document.querySelector('.shell')?.remove();")
   .replace('Entre com sua conta segura. O primeiro cadastro confirmado será o administrador.','Entre com a conta criada pelo administrador da NexCell.')
   .replace('<button class="secondary" name="action" value="signup">Criar primeira conta</button>','')
   .replace("path=submit==='signup'?'/auth/v1/signup':'/auth/v1/token?grant_type=password'","path='/auth/v1/token?grant_type=password'")

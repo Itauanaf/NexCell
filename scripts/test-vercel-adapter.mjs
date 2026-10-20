@@ -36,6 +36,8 @@ globalThis.fetch=async input=>String(input).includes("/rest/v1/rpc/current_acces
 const page=await invoke("/api/handler?__path=",{headers:{cookie:"nexcell_access=test-token"}});
 globalThis.fetch=originalFetch;
 assert.equal(page.status,200);assert.match(page.body,/NexCell ERP/);assert.doesNotMatch(page.body,/nexcell\.supabase\.session|localStorage/);
+const applicationScript=page.body.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+assert.ok(applicationScript);new Function(applicationScript);
 assert.match(page.body,/\/api\/auth\/logout/);assert.match(page.body,/sidebar-backdrop/);assert.match(page.body,/notification-panel/);
 assert.match(page.body,/body\.menu-open\{overflow:hidden\}/);assert.match(page.body,/@media\(min-width:781px\).*\.nav-item\{font-size:14px/s);
 assert.match(page.body,/#app \.data-table td\{font-size:13px/);assert.match(page.body,/\/api\/notifications\/read-all/);assert.match(page.body,/setInterval\(.*60000/s);
@@ -43,6 +45,10 @@ assert.match(page.body,/closest\('#sidebar \[data-page\]'\)/);assert.match(page.
 assert.match(page.body,/history\.replaceState\(null,'','#module='/);assert.match(page.body,/isAllowed\(desired\)/);assert.match(page.body,/#newTransfer\.row-actions\{display:inline-flex;align-self:center/);
 assert.match(page.body,/background:#078bea;color:#fff;font-size:12px/);assert.match(page.headers["content-security-policy"],/script-src 'self' 'sha256-/);
 assert.match(page.headers["content-security-policy"],/frame-ancestors 'none'/);assert.match(page.headers["strict-transport-security"],/max-age=31536000/);
+assert.match(page.body,/const originalGetJson=getJson,cache=new Map\(\)/);
+assert.match(page.body,/url==='\/api\/session'\?30000/);
+assert.match(page.body,/method!==\'GET\'&&method!==\'HEAD\'\)cache\.clear\(\)/);
+assert.match(page.body,/requestIdleCallback/);
 assert.doesNotMatch(page.headers["content-security-policy"],/script-src[^;]*unsafe-inline/);
 
 const config=await invoke("/api/handler?__path=api%2Fconfig");
